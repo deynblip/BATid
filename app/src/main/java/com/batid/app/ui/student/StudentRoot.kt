@@ -3,7 +3,6 @@ package com.batid.app.ui.student
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.batid.app.data.model.Program
 import com.batid.app.data.model.YearLevel
 import com.batid.app.data.sample.SampleAnnouncements
 import androidx.compose.foundation.layout.Column
@@ -52,6 +51,7 @@ import com.batid.app.data.model.programEnum
 import com.batid.app.data.model.yearLevelEnum
 import com.batid.app.notifications.NotificationHelper
 import com.batid.app.notifications.NotificationPrefs
+import com.batid.app.notifications.PushTopics
 
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
@@ -63,6 +63,7 @@ private val studentTabs = listOf(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StudentRoot(onSignOut: () -> Unit) {
+
     StatusBarAppearance(darkIcons = false)
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -89,6 +90,9 @@ fun StudentRoot(onSignOut: () -> Unit) {
         ) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+    LaunchedEffect(profile.program, profile.yearLevel) {
+        PushTopics.sync(profile.programEnum, profile.yearLevelEnum)
     }
     var savedIds by rememberSaveable(
         stateSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
@@ -173,6 +177,7 @@ fun StudentRoot(onSignOut: () -> Unit) {
                         profile = profile.copy(yearLevel = y.name).also { AccountStore.update(context, it) }
                     },
                     onSignOut = {
+                        PushTopics.clear()
                         NotificationPrefs.reset(context)
                         AccountStore.signOut(context)
                         onSignOut()

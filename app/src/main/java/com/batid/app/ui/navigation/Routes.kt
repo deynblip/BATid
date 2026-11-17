@@ -1,0 +1,31 @@
+package com.batid.app.ui.navigation
+
+/** Top-level routes (auth + the two role roots). */
+object Routes {
+    const val SPLASH = "splash"
+    const val WELCOME = "welcome"
+    const val STUDENT_SIGN_IN = "student_sign_in"
+    const val CREATE_ACCOUNT = "create_account"
+    const val ADMIN_SIGN_IN = "admin_sign_in"
+    const val STUDENT_ROOT = "student"
+    const val ADMIN_ROOT = "admin"
+}
+
+/** Routes inside the student side. */
+object StudentRoutes {
+    const val HOME = "home"
+    const val SEARCH = "search"
+    const val SAVED = "saved"
+    const val PROFILE = "profile"
+    const val ANNOUNCEMENT_ARG = "id"
+    const val ANNOUNCEMENT = "announcement/{$ANNOUNCEMENT_ARG}"
+    fun announcement(id: String) = "announcement/$id"
+    const val NOTIFICATIONS = "notifications"
+}
+
+/** Routes inside the faculty/admin side. */
+object AdminRoutes {
+    const val DASHBOARD = "dashboard"
+    const val NEW = "new"
+    const val MANAGE = "manage"
+}

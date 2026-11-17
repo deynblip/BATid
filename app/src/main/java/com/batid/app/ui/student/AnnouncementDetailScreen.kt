@@ -52,6 +52,7 @@ import com.batid.app.ui.theme.NavyBlue
 import com.batid.app.ui.theme.SlateGray
 import com.batid.app.util.formatDateTime
 import com.batid.app.util.relativeTime
+import com.batid.app.util.editedLabel
 
 @Composable
 fun AnnouncementDetailScreen(
@@ -103,7 +104,7 @@ fun AnnouncementDetailScreen(
                         }
                         if (announcement.updatedAt > announcement.createdAt) {
                             Text(
-                                text = "Updated " + relativeTime(announcement.updatedAt).lowercase(),
+                                text = editedLabel(announcement.updatedAt),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = SlateGray
                             )

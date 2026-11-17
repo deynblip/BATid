@@ -111,8 +111,13 @@ object SampleAnnouncements {
     )
 
     /** What a student of [program] / [year] should see: emergencies first, then newest. */
-    fun feedFor(program: Program?, year: YearLevel): List<Announcement> =
-        all().filter { it.isFor(program, year) }
+    /** What a student of [program] / [year] should see: emergencies first, then newest. */
+    fun feedFor(
+        program: Program?,
+        year: YearLevel,
+        source: List<Announcement> = all()
+    ): List<Announcement> =
+        source.filter { it.isFor(program, year) }
             .sortedWith(
                 compareByDescending<Announcement> { it.isEmergency }
                     .thenByDescending { it.createdAt }

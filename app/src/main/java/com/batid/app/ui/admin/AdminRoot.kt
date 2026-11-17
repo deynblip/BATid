@@ -1,7 +1,11 @@
 package com.batid.app.ui.admin
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircleOutline
@@ -10,13 +14,18 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.batid.app.data.repository.AnnouncementStore
 import com.batid.app.ui.components.BatidBottomBar
 import com.batid.app.ui.components.BottomBarItem
 import com.batid.app.ui.components.LocalIsOnline
@@ -31,31 +40,43 @@ private val adminTabs = listOf(
 )
 
 /** Everything a signed-in faculty member / admin sees. Students never reach this. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AdminRoot(onSignOut: () -> Unit) {
     StatusBarAppearance(darkIcons = false)
+    val context = LocalContext.current
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val isOnline = LocalIsOnline.current
+    val imeVisible = WindowInsets.isImeVisible
+
+    // Shared with the student side: whatever changes here changes there.
+    val announcements = AnnouncementStore.items
+
+    fun goToTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     Scaffold(
+        modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(),
         bottomBar = {
-            Column {
-                NoConnectionBanner(visible = !isOnline)
-                BatidBottomBar(
-                    items = adminTabs,
-                    currentRoute = currentRoute,
-                    onSelect = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
+            // Hide the bar on form screens (compose / emergency / edit) and while typing.
+            if (!imeVisible && adminTabs.any { it.route == currentRoute }) {
+                Column {
+                    NoConnectionBanner(visible = !isOnline)
+                    BatidBottomBar(
+                        items = adminTabs,
+                        currentRoute = currentRoute,
+                        onSelect = { route -> goToTab(route) }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -64,9 +85,65 @@ fun AdminRoot(onSignOut: () -> Unit) {
             startDestination = AdminRoutes.DASHBOARD,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(AdminRoutes.DASHBOARD) { DashboardScreen(onSignOut = onSignOut) }
-            composable(AdminRoutes.NEW) { NewAnnouncementScreen() }
-            composable(AdminRoutes.MANAGE) { ManageAnnouncementsScreen() }
+            composable(AdminRoutes.DASHBOARD) {
+                DashboardScreen(
+                    announcements = announcements,
+                    onNewAnnouncement = { navController.navigate(AdminRoutes.COMPOSE) },
+                    onEmergencyAlert = { navController.navigate(AdminRoutes.EMERGENCY) },
+                    onSeeAll = { goToTab(AdminRoutes.MANAGE) },
+                    onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.edit(id)) },
+                    onSignOut = onSignOut
+                )
+            }
+            // "New" bottom tab: same form, no back arrow. After publishing, go to the dashboard.
+            composable(AdminRoutes.NEW) {
+                AnnouncementFormScreen(
+                    existing = null,
+                    onBack = null,
+                    onDone = { goToTab(AdminRoutes.DASHBOARD) }
+                )
+            }
+            composable(AdminRoutes.MANAGE) {
+                ManageAnnouncementsScreen(
+                    announcements = announcements,
+                    onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
+                    onDelete = { id ->
+                        AnnouncementStore.delete(id)
+                        Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            // Opened from the dashboard's "New announcement" button.
+            composable(AdminRoutes.COMPOSE) {
+                AnnouncementFormScreen(
+                    existing = null,
+                    onBack = { navController.popBackStack() },
+                    onDone = { navController.popBackStack() }
+                )
+            }
+            composable(AdminRoutes.EMERGENCY) {
+                EmergencyAlertScreen(
+                    onBack = { navController.popBackStack() },
+                    onDone = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = AdminRoutes.EDIT,
+                arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
+            ) { entry ->
+                val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
+                val existing = announcements.firstOrNull { it.id == id }
+                if (existing == null) {
+                    // Deleted while open: just leave.
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                } else {
+                    AnnouncementFormScreen(
+                        existing = existing,
+                        onBack = { navController.popBackStack() },
+                        onDone = { navController.popBackStack() }
+                    )
+                }
+            }
         }
     }
 }

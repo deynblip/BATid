@@ -52,6 +52,7 @@ import com.batid.app.data.model.yearLevelEnum
 import com.batid.app.notifications.NotificationHelper
 import com.batid.app.notifications.NotificationPrefs
 import com.batid.app.notifications.PushTopics
+import com.batid.app.data.repository.AnnouncementStore
 
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
@@ -75,9 +76,10 @@ fun StudentRoot(onSignOut: () -> Unit) {
     val context = LocalContext.current
 // The signed-in student, loaded from the account they created.
     var profile by remember { mutableStateOf(AccountStore.current(context) ?: UserProfile()) }
-// TEMPORARY fake feed until Firebase is connected; it follows the student's program/year.
-    val studentFeed = remember(profile.program, profile.yearLevel) {
-        SampleAnnouncements.feedFor(profile.programEnum, profile.yearLevelEnum)
+    // Live list shared with the admin side: publish/edit/delete there updates this instantly.
+    val allAnnouncements = AnnouncementStore.items
+    val studentFeed = remember(allAnnouncements, profile.program, profile.yearLevel) {
+        SampleAnnouncements.feedFor(profile.programEnum, profile.yearLevelEnum, allAnnouncements)
     }
 
 // Create notification channels, mark push as active, and ask for permission (Android 13+).

@@ -23,3 +23,9 @@ fun relativeTime(millis: Long, now: Long = System.currentTimeMillis()): String {
 /** "Nov 9, 2026 · 12:38 PM" */
 fun formatDateTime(millis: Long): String =
     SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault()).format(Date(millis))
+
+/** "Edited just now", "Edited 3 min ago", "Edited 2 days ago". */
+fun editedLabel(updatedAt: Long, now: Long = System.currentTimeMillis()): String {
+    val time = relativeTime(updatedAt, now)
+    return if (time == "Just now") "Edited just now" else "Edited $time"
+}

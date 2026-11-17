@@ -28,4 +28,9 @@ object AdminRoutes {
     const val DASHBOARD = "dashboard"
     const val NEW = "new"
     const val MANAGE = "manage"
+    const val COMPOSE = "compose"
+    const val EMERGENCY = "emergency"
+    const val EDIT_ARG = "id"
+    const val EDIT = "edit/{$EDIT_ARG}"
+    fun edit(id: String) = "edit/$id"
 }

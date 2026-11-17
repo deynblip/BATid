@@ -38,6 +38,20 @@ import com.batid.app.ui.navigation.StudentRoutes
 import com.batid.app.data.model.buildNotifications
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.batid.app.data.local.AccountStore
+import com.batid.app.data.model.UserProfile
+import com.batid.app.data.model.programEnum
+import com.batid.app.data.model.yearLevelEnum
+import com.batid.app.notifications.NotificationHelper
+import com.batid.app.notifications.NotificationPrefs
 
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
@@ -57,7 +71,25 @@ fun StudentRoot(onSignOut: () -> Unit) {
     val imeVisible = WindowInsets.isImeVisible
 
     // TEMPORARY: fake student (BSCS, 3rd year) and fake feed until Firebase is connected.
-    val studentFeed = remember { SampleAnnouncements.feedFor(Program.BSCS, YearLevel.THIRD) }
+    val context = LocalContext.current
+// The signed-in student, loaded from the account they created.
+    var profile by remember { mutableStateOf(AccountStore.current(context) ?: UserProfile()) }
+// TEMPORARY fake feed until Firebase is connected; it follows the student's program/year.
+    val studentFeed = remember(profile.program, profile.yearLevel) {
+        SampleAnnouncements.feedFor(profile.programEnum, profile.yearLevelEnum)
+    }
+
+// Create notification channels, mark push as active, and ask for permission (Android 13+).
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        NotificationHelper.createChannels(context)
+        NotificationPrefs.setActive(context, true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     var savedIds by rememberSaveable(
         stateSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
     ) { mutableStateOf(setOf<String>()) }
@@ -131,7 +163,22 @@ fun StudentRoot(onSignOut: () -> Unit) {
                     onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
                 )
             }
-            composable(StudentRoutes.PROFILE) { ProfileScreen(onSignOut = onSignOut) }
+            composable(StudentRoutes.PROFILE) {
+                ProfileScreen(
+                    profile = profile,
+                    onChangeProgram = { p ->
+                        profile = profile.copy(program = p.name).also { AccountStore.update(context, it) }
+                    },
+                    onChangeYear = { y ->
+                        profile = profile.copy(yearLevel = y.name).also { AccountStore.update(context, it) }
+                    },
+                    onSignOut = {
+                        NotificationPrefs.reset(context)
+                        AccountStore.signOut(context)
+                        onSignOut()
+                    }
+                )
+            }
             composable(
                 route = StudentRoutes.ANNOUNCEMENT,
                 arguments = listOf(navArgument(StudentRoutes.ANNOUNCEMENT_ARG) { type = NavType.StringType })

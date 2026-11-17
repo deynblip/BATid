@@ -26,6 +26,9 @@ import com.batid.app.ui.components.BatidButton
 import com.batid.app.ui.components.FilterPill
 import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.SlateGray
+import com.batid.app.data.local.AccountStore
+import com.batid.app.data.model.UserProfile
+import com.batid.app.data.model.UserRole
 
 /** Student sign in. */
 @Composable
@@ -34,6 +37,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var notFound by remember { mutableStateOf(false) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
@@ -50,10 +54,14 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         AuthTextField(
             label = "University email",
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; notFound = false },
             placeholder = "sr-code@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
-            error = if (submitted && !emailOk) "Enter your $AuthEmailDomain email." else null
+            error = when {
+                submitted && !emailOk -> "Enter your $AuthEmailDomain email."
+                notFound -> "No account found for this email. Create an account first."
+                else -> null
+            }
         )
         Spacer(Modifier.height(12.dp))
         AuthTextField(
@@ -72,7 +80,9 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
             text = "Log In",
             onClick = {
                 submitted = true
-                if (emailOk && passwordOk) onSignedIn()
+                if (emailOk && passwordOk) {
+                    if (AccountStore.signIn(context, email) != null) onSignedIn() else notFound = true
+                }
             },
             modifier = Modifier.fillMaxWidth()
         )
@@ -152,6 +162,7 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
 /** Create account for students. Same layout as the sign-in form, with extra fields. */
 @Composable
 fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -> Unit) {
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var fullName by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
@@ -253,7 +264,24 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
                 submitted = true
                 if (nameOk && emailOk && programOk && yearOk && sectionOk && passwordOk && confirmOk) {
                     focusManager.clearFocus()
-                    onCreated()
+                    if (AccountStore.exists(context, email)) {
+                        showComingSoon(context, "An account with this email already exists. Please log in.")
+                    } else {
+                        val cleanEmail = email.trim().lowercase()
+                        AccountStore.register(
+                            context,
+                            UserProfile(
+                                uid = cleanEmail,
+                                fullName = fullName.trim(),
+                                email = cleanEmail,
+                                role = UserRole.STUDENT.name,
+                                program = program.orEmpty(),
+                                yearLevel = year.orEmpty(),
+                                section = section.trim()
+                            )
+                        )
+                        onCreated()
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()

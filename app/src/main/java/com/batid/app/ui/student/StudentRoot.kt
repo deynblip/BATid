@@ -36,6 +36,8 @@ import com.batid.app.ui.components.NoConnectionBanner
 import com.batid.app.ui.components.StatusBarAppearance
 import com.batid.app.ui.navigation.StudentRoutes
 import com.batid.app.data.model.buildNotifications
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
@@ -56,7 +58,9 @@ fun StudentRoot(onSignOut: () -> Unit) {
 
     // TEMPORARY: fake student (BSCS, 3rd year) and fake feed until Firebase is connected.
     val studentFeed = remember { SampleAnnouncements.feedFor(Program.BSCS, YearLevel.THIRD) }
-    var savedIds by remember { mutableStateOf(setOf<String>()) }
+    var savedIds by rememberSaveable(
+        stateSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
+    ) { mutableStateOf(setOf<String>()) }
     var readIds by remember { mutableStateOf(setOf<String>()) }
     val notifications = remember(studentFeed) { buildNotifications(studentFeed) }
     val unreadCount = notifications.count { it.id !in readIds }
@@ -119,7 +123,14 @@ fun StudentRoot(onSignOut: () -> Unit) {
                     onBack = { navController.popBackStack() }
                 )
             }
-            composable(StudentRoutes.SAVED) { SavedScreen() }
+            composable(StudentRoutes.SAVED) {
+                SavedScreen(
+                    announcements = studentFeed,
+                    savedIds = savedIds,
+                    onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
+                    onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
+                )
+            }
             composable(StudentRoutes.PROFILE) { ProfileScreen(onSignOut = onSignOut) }
             composable(
                 route = StudentRoutes.ANNOUNCEMENT,

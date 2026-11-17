@@ -7,9 +7,6 @@ import com.batid.app.ui.components.ComingSoonScreen
 
 // Placeholders
 
-@Composable
-fun SavedScreen(modifier: Modifier = Modifier) =
-    ComingSoonScreen("Saved", "Saved announcements", modifier)
 
 @Composable
 fun ProfileScreen(onSignOut: () -> Unit, modifier: Modifier = Modifier) =

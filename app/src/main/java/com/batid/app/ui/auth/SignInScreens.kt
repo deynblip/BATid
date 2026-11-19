@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,21 +27,57 @@ import com.batid.app.ui.components.BatidButton
 import com.batid.app.ui.components.FilterPill
 import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.SlateGray
-import com.batid.app.data.local.AccountStore
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
+import com.batid.app.data.remote.AuthRepository
+import com.batid.app.data.model.roleEnum
 
 /** Student sign in. */
 @Composable
 fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignIn: () -> Unit) {
-    val context = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
-    var notFound by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Forgot password?") },
+            text = {
+                Text("We will send a password reset link to ${email.trim().lowercase()}. Do you want to continue?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    AuthRepository.sendPasswordReset(email) { error ->
+                        resetMessage = error
+                            ?: "If an account exists for ${email.trim().lowercase()}, we sent a password reset link to it. Please check your inbox and also your spam folder. The link can be used only once."
+                    }
+                }) { Text("Send link") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    resetMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { resetMessage = null },
+            title = { Text("Password reset") },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { resetMessage = null }) { Text("OK") }
+            }
+        )
+    }
 
     AuthFormScreen(onBack = onBack) {
         Text("Log in", style = MaterialTheme.typography.titleLarge, color = InkNavy)
@@ -54,12 +91,12 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         AuthTextField(
             label = "University email",
             value = email,
-            onValueChange = { email = it; notFound = false },
+            onValueChange = { email = it; loginError = null },
             placeholder = "sr-code@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
             error = when {
                 submitted && !emailOk -> "Enter your $AuthEmailDomain email."
-                notFound -> "No account found for this email. Create an account first."
+                loginError != null -> loginError
                 else -> null
             }
         )
@@ -67,7 +104,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         AuthTextField(
             label = "Password",
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; loginError = null },
             placeholder = "Enter your password",
             isPassword = true,
             keyboardType = KeyboardType.Password,
@@ -77,18 +114,37 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Log In",
+            text = if (loading) "Logging in..." else "Log In",
+            enabled = !loading,
             onClick = {
                 submitted = true
                 if (emailOk && passwordOk) {
-                    if (AccountStore.signIn(context, email) != null) onSignedIn() else notFound = true
+                    loading = true
+                    AuthRepository.signIn(email, password) { profile, error ->
+                        loading = false
+                        when {
+                            error != null -> loginError = error
+                            profile == null -> loginError = "Something went wrong. Please try again."
+                            profile.roleEnum.canPublish -> {
+                                AuthRepository.signOut()
+                                loginError = "This log in is for students only. Please use Faculty or admin log in."
+                            }
+                            else -> onSignedIn()
+                        }
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { showComingSoon(context, "Password reset will be added with Firebase.") }) {
+            TextButton(onClick = {
+                if (!emailOk) {
+                    loginError = "Enter your $AuthEmailDomain email first."
+                } else {
+                    confirmReset = true
+                }
+            }) {
                 Text("Forgot password?", style = MaterialTheme.typography.labelSmall)
             }
             TextButton(onClick = onAdminSignIn) {
@@ -101,13 +157,49 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
 /** Faculty / admin sign in. Same layout as the student form. */
 @Composable
 fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
-    val context = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Forgot password?") },
+            text = {
+                Text("We will send a password reset link to ${email.trim().lowercase()}. Do you want to continue?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    AuthRepository.sendPasswordReset(email) { error ->
+                        resetMessage = error
+                            ?: "If an account exists for ${email.trim().lowercase()}, we sent a password reset link to it. Please check your inbox and also your spam folder. The link can be used only once."
+                    }
+                }) { Text("Send link") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    resetMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { resetMessage = null },
+            title = { Text("Password reset") },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { resetMessage = null }) { Text("OK") }
+            }
+        )
+    }
 
     AuthFormScreen(onBack = onBack) {
         Text("Faculty / admin sign in", style = MaterialTheme.typography.titleLarge, color = InkNavy)
@@ -121,16 +213,20 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         AuthTextField(
             label = "University email",
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; loginError = null },
             placeholder = "name@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
-            error = if (submitted && !emailOk) "Enter your $AuthEmailDomain email." else null
+            error = when {
+                submitted && !emailOk -> "Enter your $AuthEmailDomain email."
+                loginError != null -> loginError
+                else -> null
+            }
         )
         Spacer(Modifier.height(12.dp))
         AuthTextField(
             label = "Password",
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; loginError = null },
             placeholder = "Enter your password",
             isPassword = true,
             keyboardType = KeyboardType.Password,
@@ -140,16 +236,37 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Log In",
+            text = if (loading) "Logging in..." else "Log In",
+            enabled = !loading,
             onClick = {
                 submitted = true
-                if (emailOk && passwordOk) onSignedIn()
+                if (emailOk && passwordOk) {
+                    loading = true
+                    AuthRepository.signIn(email, password) { profile, error ->
+                        loading = false
+                        when {
+                            error != null -> loginError = error
+                            profile == null -> loginError = "Something went wrong. Please try again."
+                            !profile.roleEnum.canPublish -> {
+                                AuthRepository.signOut()
+                                loginError = "This account is not authorized as faculty or admin."
+                            }
+                            else -> onSignedIn()
+                        }
+                    }
+                }
             },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { showComingSoon(context, "Password reset will be added with Firebase.") }) {
+            TextButton(onClick = {
+                if (!emailOk) {
+                    loginError = "Enter your $AuthEmailDomain email first."
+                } else {
+                    confirmReset = true
+                }
+            }) {
                 Text("Forgot password?", style = MaterialTheme.typography.labelSmall)
             }
             TextButton(onClick = onBack) {
@@ -172,6 +289,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
 
     val nameOk = fullName.isNotBlank()
     val emailOk = isUniversityEmail(email)
@@ -226,6 +344,12 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
             }
         }
         AuthErrorText(if (submitted && !yearOk) "Choose your year level." else null)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Choose carefully. Your program can only be changed by an admin. You can update your year level later in Profile.",
+            style = MaterialTheme.typography.labelSmall,
+            color = SlateGray
+        )
         Spacer(Modifier.height(12.dp))
 
         AuthTextField(
@@ -259,28 +383,33 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Create Account",
+            text = if (loading) "Creating account..." else "Create Account",
+            enabled = !loading,
             onClick = {
                 submitted = true
                 if (nameOk && emailOk && programOk && yearOk && sectionOk && passwordOk && confirmOk) {
                     focusManager.clearFocus()
-                    if (AccountStore.exists(context, email)) {
-                        showComingSoon(context, "An account with this email already exists. Please log in.")
-                    } else {
-                        val cleanEmail = email.trim().lowercase()
-                        AccountStore.register(
-                            context,
-                            UserProfile(
-                                uid = cleanEmail,
-                                fullName = fullName.trim(),
-                                email = cleanEmail,
-                                role = UserRole.STUDENT.name,
-                                program = program.orEmpty(),
-                                yearLevel = year.orEmpty(),
-                                section = section.trim()
-                            )
+                    loading = true
+                    AuthRepository.signUp(
+                        email = email,
+                        password = password,
+                        profile = UserProfile(
+                            fullName = fullName.trim(),
+                            email = email.trim().lowercase(),
+                            role = UserRole.STUDENT.name,
+                            program = program.orEmpty(),
+                            yearLevel = year.orEmpty(),
+                            section = section.trim()
                         )
-                        onCreated()
+                    ) { error ->
+                        loading = false
+                        if (error == null) {
+                            // Mag-log in muna pagkatapos; hindi pa tayo pumapasok sa app
+                            AuthRepository.signOut()
+                            onCreated()
+                        } else {
+                            showComingSoon(context, error)
+                        }
                     }
                 }
             },

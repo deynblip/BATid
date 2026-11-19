@@ -45,7 +45,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.batid.app.data.local.AccountStore
+import com.batid.app.data.remote.AuthRepository
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.programEnum
 import com.batid.app.data.model.yearLevelEnum
@@ -75,7 +75,7 @@ fun StudentRoot(onSignOut: () -> Unit) {
     // TEMPORARY: fake student (BSCS, 3rd year) and fake feed until Firebase is connected.
     val context = LocalContext.current
 // The signed-in student, loaded from the account they created.
-    var profile by remember { mutableStateOf(AccountStore.current(context) ?: UserProfile()) }
+    var profile by remember { mutableStateOf(AuthRepository.currentProfile ?: UserProfile()) }
     // Live list shared with the admin side: publish/edit/delete there updates this instantly.
     val allAnnouncements = AnnouncementStore.items
     val studentFeed = remember(allAnnouncements, profile.program, profile.yearLevel) {
@@ -173,15 +173,17 @@ fun StudentRoot(onSignOut: () -> Unit) {
                 ProfileScreen(
                     profile = profile,
                     onChangeProgram = { p ->
-                        profile = profile.copy(program = p.name).also { AccountStore.update(context, it) }
+                        profile = profile.copy(program = p.name)
+                        AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
                     },
                     onChangeYear = { y ->
-                        profile = profile.copy(yearLevel = y.name).also { AccountStore.update(context, it) }
+                        profile = profile.copy(yearLevel = y.name)
+                        AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
                     },
                     onSignOut = {
                         PushTopics.clear()
                         NotificationPrefs.reset(context)
-                        AccountStore.signOut(context)
+                        AuthRepository.signOut()
                         onSignOut()
                     }
                 )

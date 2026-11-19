@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,7 +27,6 @@ import com.batid.app.ui.components.BatidButton
 import com.batid.app.ui.components.FilterPill
 import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.SlateGray
-import com.batid.app.data.local.AccountStore
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.remote.AuthRepository
@@ -35,15 +35,49 @@ import com.batid.app.data.model.roleEnum
 /** Student sign in. */
 @Composable
 fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignIn: () -> Unit) {
-    val context = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Forgot password?") },
+            text = {
+                Text("We will send a password reset link to ${email.trim().lowercase()}. Do you want to continue?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    AuthRepository.sendPasswordReset(email) { error ->
+                        resetMessage = error
+                            ?: "If an account exists for ${email.trim().lowercase()}, we sent a password reset link to it. Please check your inbox and also your spam folder. The link can be used only once."
+                    }
+                }) { Text("Send link") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    resetMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { resetMessage = null },
+            title = { Text("Password reset") },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { resetMessage = null }) { Text("OK") }
+            }
+        )
+    }
 
     AuthFormScreen(onBack = onBack) {
         Text("Log in", style = MaterialTheme.typography.titleLarge, color = InkNavy)
@@ -104,7 +138,13 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         )
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { showComingSoon(context, "Password reset will be added with Firebase.") }) {
+            TextButton(onClick = {
+                if (!emailOk) {
+                    loginError = "Enter your $AuthEmailDomain email first."
+                } else {
+                    confirmReset = true
+                }
+            }) {
                 Text("Forgot password?", style = MaterialTheme.typography.labelSmall)
             }
             TextButton(onClick = onAdminSignIn) {
@@ -117,15 +157,49 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
 /** Faculty / admin sign in. Same layout as the student form. */
 @Composable
 fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
-    val context = LocalContext.current
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Forgot password?") },
+            text = {
+                Text("We will send a password reset link to ${email.trim().lowercase()}. Do you want to continue?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    AuthRepository.sendPasswordReset(email) { error ->
+                        resetMessage = error
+                            ?: "If an account exists for ${email.trim().lowercase()}, we sent a password reset link to it. Please check your inbox and also your spam folder. The link can be used only once."
+                    }
+                }) { Text("Send link") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    resetMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { resetMessage = null },
+            title = { Text("Password reset") },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { resetMessage = null }) { Text("OK") }
+            }
+        )
+    }
 
     AuthFormScreen(onBack = onBack) {
         Text("Faculty / admin sign in", style = MaterialTheme.typography.titleLarge, color = InkNavy)
@@ -186,7 +260,13 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         )
         Spacer(Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { showComingSoon(context, "Password reset will be added with Firebase.") }) {
+            TextButton(onClick = {
+                if (!emailOk) {
+                    loginError = "Enter your $AuthEmailDomain email first."
+                } else {
+                    confirmReset = true
+                }
+            }) {
                 Text("Forgot password?", style = MaterialTheme.typography.labelSmall)
             }
             TextButton(onClick = onBack) {

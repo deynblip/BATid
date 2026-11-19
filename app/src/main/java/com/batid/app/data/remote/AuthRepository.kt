@@ -97,7 +97,7 @@ object AuthRepository {
             }
             .addOnFailureListener { onDone(null) }
     }
-    
+
     fun updateProgramAndYear(program: String, yearLevel: String) {
         val uid = auth.currentUser?.uid ?: return
         currentProfile = currentProfile?.copy(program = program, yearLevel = yearLevel)
@@ -108,6 +108,12 @@ object AuthRepository {
     fun signOut() {
         currentProfile = null
         auth.signOut()
+    }
+    
+    fun sendPasswordReset(email: String, onDone: (error: String?) -> Unit) {
+        auth.sendPasswordResetEmail(email.trim().lowercase())
+            .addOnSuccessListener { onDone(null) }
+            .addOnFailureListener { e -> onDone(friendlyError(e)) }
     }
 
     private fun friendlyError(e: Exception): String = when (e) {

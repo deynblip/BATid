@@ -23,7 +23,8 @@ import com.batid.app.ui.auth.StudentSignInScreen
 import com.batid.app.ui.auth.WelcomeScreen
 import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.student.StudentRoot
-import com.batid.app.data.local.AccountStore
+import com.batid.app.data.model.roleEnum
+import com.batid.app.data.remote.AuthRepository
 
 @Composable
 fun BatidApp() {
@@ -42,10 +43,22 @@ fun BatidApp() {
         ) {
             composable(Routes.SPLASH) {
                 SplashScreen(onFinished = {
-                    val signedIn = AccountStore.current(context) != null
-                    val next = if (signedIn) Routes.STUDENT_ROOT else Routes.WELCOME
-                    navController.navigate(next) {
-                        popUpTo(Routes.SPLASH) { inclusive = true }
+                    fun go(route: String) {
+                        navController.navigate(route) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                        }
+                    }
+                    if (AuthRepository.isSignedIn) {
+                        // May naka-login pa sa Firebase. Kunin ang profile para malaman ang role.
+                        AuthRepository.loadCurrentProfile { profile ->
+                            when {
+                                profile == null -> go(Routes.WELCOME)
+                                profile.roleEnum.canPublish -> go(Routes.ADMIN_ROOT)
+                                else -> go(Routes.STUDENT_ROOT)
+                            }
+                        }
+                    } else {
+                        go(Routes.WELCOME)
                     }
                 })
             }

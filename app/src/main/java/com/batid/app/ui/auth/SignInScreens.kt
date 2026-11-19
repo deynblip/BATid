@@ -29,7 +29,10 @@ import com.batid.app.ui.theme.SlateGray
 import com.batid.app.data.local.AccountStore
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
+import com.batid.app.data.remote.AuthRepository
+import com.batid.app.data.model.roleEnum
 
+/** Student sign in. */
 /** Student sign in. */
 @Composable
 fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignIn: () -> Unit) {
@@ -37,7 +40,8 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
-    var notFound by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
@@ -54,12 +58,12 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         AuthTextField(
             label = "University email",
             value = email,
-            onValueChange = { email = it; notFound = false },
+            onValueChange = { email = it; loginError = null },
             placeholder = "sr-code@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
             error = when {
                 submitted && !emailOk -> "Enter your $AuthEmailDomain email."
-                notFound -> "No account found for this email. Create an account first."
+                loginError != null -> loginError
                 else -> null
             }
         )
@@ -67,7 +71,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         AuthTextField(
             label = "Password",
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; loginError = null },
             placeholder = "Enter your password",
             isPassword = true,
             keyboardType = KeyboardType.Password,
@@ -77,11 +81,24 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Log In",
+            text = if (loading) "Logging in..." else "Log In",
+            enabled = !loading,
             onClick = {
                 submitted = true
                 if (emailOk && passwordOk) {
-                    if (AccountStore.signIn(context, email) != null) onSignedIn() else notFound = true
+                    loading = true
+                    AuthRepository.signIn(email, password) { profile, error ->
+                        loading = false
+                        when {
+                            error != null -> loginError = error
+                            profile == null -> loginError = "Something went wrong. Please try again."
+                            profile.roleEnum.canPublish -> {
+                                AuthRepository.signOut()
+                                loginError = "This is a faculty or admin account. Use Faculty or admin log in."
+                            }
+                            else -> onSignedIn()
+                        }
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -172,6 +189,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
 
     val nameOk = fullName.isNotBlank()
     val emailOk = isUniversityEmail(email)
@@ -259,28 +277,33 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Create Account",
+            text = if (loading) "Creating account..." else "Create Account",
+            enabled = !loading,
             onClick = {
                 submitted = true
                 if (nameOk && emailOk && programOk && yearOk && sectionOk && passwordOk && confirmOk) {
                     focusManager.clearFocus()
-                    if (AccountStore.exists(context, email)) {
-                        showComingSoon(context, "An account with this email already exists. Please log in.")
-                    } else {
-                        val cleanEmail = email.trim().lowercase()
-                        AccountStore.register(
-                            context,
-                            UserProfile(
-                                uid = cleanEmail,
-                                fullName = fullName.trim(),
-                                email = cleanEmail,
-                                role = UserRole.STUDENT.name,
-                                program = program.orEmpty(),
-                                yearLevel = year.orEmpty(),
-                                section = section.trim()
-                            )
+                    loading = true
+                    AuthRepository.signUp(
+                        email = email,
+                        password = password,
+                        profile = UserProfile(
+                            fullName = fullName.trim(),
+                            email = email.trim().lowercase(),
+                            role = UserRole.STUDENT.name,
+                            program = program.orEmpty(),
+                            yearLevel = year.orEmpty(),
+                            section = section.trim()
                         )
-                        onCreated()
+                    ) { error ->
+                        loading = false
+                        if (error == null) {
+                            // Mag-log in muna pagkatapos; hindi pa tayo pumapasok sa app
+                            AuthRepository.signOut()
+                            onCreated()
+                        } else {
+                            showComingSoon(context, error)
+                        }
                     }
                 }
             },

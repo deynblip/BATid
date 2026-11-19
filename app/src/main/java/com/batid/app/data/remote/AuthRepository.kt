@@ -10,13 +10,16 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
- * Ang taga-usap sa Firebase Auth (login) at Firestore (users/{uid}).
+ * The file that talks sa Firebase Auth (login) at Firestore (users/{uid}).
  * Pinapalitan nito ang pansamantalang AccountStore.
  * Ang onDone ay tinatawag kapag tapos na: error message kung may mali, null kung okay.
  */
 object AuthRepository {
     private val auth get() = FirebaseAuth.getInstance()
     private val db get() = FirebaseFirestore.getInstance()
+
+    var currentProfile: UserProfile? = null
+        private set
 
     val isSignedIn: Boolean get() = auth.currentUser != null
 
@@ -68,6 +71,7 @@ object AuthRepository {
                             auth.signOut()
                             onDone(null, "No profile found for this account.")
                         } else {
+                            currentProfile = profile
                             onDone(profile, null)
                         }
                     }
@@ -86,11 +90,25 @@ object AuthRepository {
             return
         }
         db.collection("users").document(uid).get()
-            .addOnSuccessListener { snap -> onDone(snap.toObject(UserProfile::class.java)) }
+            .addOnSuccessListener { snap ->
+                val profile = snap.toObject(UserProfile::class.java)
+                currentProfile = profile
+                onDone(profile)
+            }
             .addOnFailureListener { onDone(null) }
     }
+    
+    fun updateProgramAndYear(program: String, yearLevel: String) {
+        val uid = auth.currentUser?.uid ?: return
+        currentProfile = currentProfile?.copy(program = program, yearLevel = yearLevel)
+        db.collection("users").document(uid)
+            .update(mapOf("program" to program, "yearLevel" to yearLevel))
+    }
 
-    fun signOut() = auth.signOut()
+    fun signOut() {
+        currentProfile = null
+        auth.signOut()
+    }
 
     private fun friendlyError(e: Exception): String = when (e) {
         is FirebaseAuthUserCollisionException ->

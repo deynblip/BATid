@@ -86,6 +86,8 @@ fun ProfileScreen(
     val context = LocalContext.current
     var picker by rememberSaveable { mutableStateOf<GroupPicker?>(null) }
     var showSignOutDialog by rememberSaveable { mutableStateOf(false) }
+    var showProgramInfo by rememberSaveable { mutableStateOf(false) }
+    var pendingYear by remember { mutableStateOf<YearLevel?>(null) }
 
     var academics by remember { mutableStateOf(NotificationPrefs.isEnabled(context, Category.ACADEMICS)) }
     var events by remember { mutableStateOf(NotificationPrefs.isEnabled(context, Category.EVENTS)) }
@@ -112,13 +114,14 @@ fun ProfileScreen(
             ) {
                 SectionLabel("YOUR GROUP")
                 SettingsCard {
-                    GroupRow("Program", program?.label ?: "Not set") { picker = GroupPicker.PROGRAM }
+                    GroupRow("Program", program?.label ?: "Not set", showChevron = false) { showProgramInfo = true }
                     HorizontalDivider(color = BorderGray)
                     GroupRow("Year level", year.label) { picker = GroupPicker.YEAR }
                 }
                 Text(
                     text = "You receive announcements sent to ${program?.label ?: "your program"}, " +
-                            "${year.label}, and to all CICS students.",
+                            "${year.label}, and to all CICS students. " +
+                            "Your program can only be changed by an admin. Keep your year level up to date so you get the right announcements.",
                     style = MaterialTheme.typography.bodySmall,
                     color = SlateGray,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -178,12 +181,52 @@ fun ProfileScreen(
             options = YearLevel.entries.filter { it != YearLevel.ALL },
             selected = year,
             labelOf = { it.label },
-            onSelect = { onChangeYear(it); picker = null },
+            onSelect = { if (it != year) pendingYear = it; picker = null },
             onDismiss = { picker = null }
         )
         null -> Unit
     }
 
+    pendingYear?.let { newYear ->
+        AlertDialog(
+            onDismissRequest = { pendingYear = null },
+            containerColor = Color.White,
+            title = { Text("Change year level?", color = InkNavy) },
+            text = {
+                Text(
+                    "Change your year level from ${year.label} to ${newYear.label}? " +
+                            "You will receive announcements for ${newYear.label} instead.",
+                    color = SlateGray
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChangeYear(newYear)
+                    pendingYear = null
+                }) { Text("Change", color = NavyBlue) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingYear = null }) { Text("Cancel", color = SlateGray) }
+            }
+        )
+    }
+
+    if (showProgramInfo) {
+        AlertDialog(
+            onDismissRequest = { showProgramInfo = false },
+            containerColor = Color.White,
+            title = { Text("Program is locked", color = InkNavy) },
+            text = {
+                Text(
+                    "Your program can only be changed by an admin. Please contact your CICS admin if you chose the wrong program.",
+                    color = SlateGray
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showProgramInfo = false }) { Text("OK", color = NavyBlue) }
+            }
+        )
+    }
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
@@ -283,7 +326,7 @@ private fun SettingsCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun GroupRow(label: String, value: String, onClick: () -> Unit) {
+private fun GroupRow(label: String, value: String, showChevron: Boolean = true, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -293,7 +336,9 @@ private fun GroupRow(label: String, value: String, onClick: () -> Unit) {
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = InkNavy, modifier = Modifier.weight(1f))
         Text(value, style = MaterialTheme.typography.labelLarge, color = NavyBlue)
-        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = NavyBlue, modifier = Modifier.size(20.dp))
+        if (showChevron) {
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = NavyBlue, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

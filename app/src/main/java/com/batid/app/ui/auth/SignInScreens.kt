@@ -344,6 +344,12 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
             }
         }
         AuthErrorText(if (submitted && !yearOk) "Choose your year level." else null)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Choose carefully. Your program can only be changed by an admin. You can update your year level later in Profile.",
+            style = MaterialTheme.typography.labelSmall,
+            color = SlateGray
+        )
         Spacer(Modifier.height(12.dp))
 
         AuthTextField(

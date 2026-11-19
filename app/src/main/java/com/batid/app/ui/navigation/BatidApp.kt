@@ -23,6 +23,7 @@ import com.batid.app.ui.auth.StudentSignInScreen
 import com.batid.app.ui.auth.WelcomeScreen
 import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.student.StudentRoot
+import com.batid.app.data.local.AccountStore
 
 @Composable
 fun BatidApp() {
@@ -41,7 +42,9 @@ fun BatidApp() {
         ) {
             composable(Routes.SPLASH) {
                 SplashScreen(onFinished = {
-                    navController.navigate(Routes.WELCOME) {
+                    val signedIn = AccountStore.current(context) != null
+                    val next = if (signedIn) Routes.STUDENT_ROOT else Routes.WELCOME
+                    navController.navigate(next) {
                         popUpTo(Routes.SPLASH) { inclusive = true }
                     }
                 })

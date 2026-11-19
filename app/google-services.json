@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "46958673272",
+    "project_id": "batid-c8326",
+    "storage_bucket": "batid-c8326.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46958673272:android:e4cdec24619a0de4e5dc8d",
+        "android_client_info": {
+          "package_name": "com.batid.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcK7gOt8wunIjlvD23MMW9ORakFJXMhfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

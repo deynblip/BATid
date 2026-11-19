@@ -96,8 +96,10 @@ fun BatidApp() {
             composable(Routes.STUDENT_ROOT) {
                 StudentRoot(onSignOut = { navController.signOutToWelcome() })
             }
-            composable(Routes.ADMIN_ROOT) {
-                AdminRoot(onSignOut = { navController.signOutToWelcome() })
+            composable(Routes.ADMIN_ROOT) { AdminRoot(onSignOut = {
+                    AuthRepository.signOut()
+                    navController.signOutToWelcome()
+                })
             }
         }
     }

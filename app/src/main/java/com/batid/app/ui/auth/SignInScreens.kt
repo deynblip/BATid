@@ -33,7 +33,6 @@ import com.batid.app.data.remote.AuthRepository
 import com.batid.app.data.model.roleEnum
 
 /** Student sign in. */
-/** Student sign in. */
 @Composable
 fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignIn: () -> Unit) {
     val context = LocalContext.current
@@ -94,7 +93,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
                             profile == null -> loginError = "Something went wrong. Please try again."
                             profile.roleEnum.canPublish -> {
                                 AuthRepository.signOut()
-                                loginError = "This is a faculty or admin account. Use Faculty or admin log in."
+                                loginError = "This log in is for students only. Please use Faculty or admin log in."
                             }
                             else -> onSignedIn()
                         }
@@ -122,6 +121,8 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
 
     val emailOk = isUniversityEmail(email)
     val passwordOk = password.isNotEmpty()
@@ -138,16 +139,20 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         AuthTextField(
             label = "University email",
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; loginError = null },
             placeholder = "name@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
-            error = if (submitted && !emailOk) "Enter your $AuthEmailDomain email." else null
+            error = when {
+                submitted && !emailOk -> "Enter your $AuthEmailDomain email."
+                loginError != null -> loginError
+                else -> null
+            }
         )
         Spacer(Modifier.height(12.dp))
         AuthTextField(
             label = "Password",
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; loginError = null },
             placeholder = "Enter your password",
             isPassword = true,
             keyboardType = KeyboardType.Password,
@@ -157,10 +162,25 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         BatidButton(
-            text = "Log In",
+            text = if (loading) "Logging in..." else "Log In",
+            enabled = !loading,
             onClick = {
                 submitted = true
-                if (emailOk && passwordOk) onSignedIn()
+                if (emailOk && passwordOk) {
+                    loading = true
+                    AuthRepository.signIn(email, password) { profile, error ->
+                        loading = false
+                        when {
+                            error != null -> loginError = error
+                            profile == null -> loginError = "Something went wrong. Please try again."
+                            !profile.roleEnum.canPublish -> {
+                                AuthRepository.signOut()
+                                loginError = "This account is not authorized as faculty or admin."
+                            }
+                            else -> onSignedIn()
+                        }
+                    }
+                }
             },
             modifier = Modifier.fillMaxWidth()
         )

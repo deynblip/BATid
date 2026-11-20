@@ -1,5 +1,8 @@
 package com.batid.app.data.repository
 
+import android.util.Log
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,7 +13,6 @@ import com.batid.app.data.model.PublishStatus
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.YearLevel
 import com.batid.app.data.model.isPublished
-import com.batid.app.data.sample.SampleAnnouncements
 import java.util.UUID
 
 /**
@@ -22,10 +24,45 @@ import java.util.UUID
 object AnnouncementStore {
     const val ADMIN_NAME = "CICS Dean's Office"
 
-    var items: List<Announcement> by mutableStateOf(SampleAnnouncements.all())
+    var items: List<Announcement> by mutableStateOf(emptyList())
         private set
 
     fun find(id: String): Announcement? = items.firstOrNull { it.id == id }
+
+    private var publishedListener: ListenerRegistration? = null
+
+    /**
+     * Starts listening to PUBLISHED announcements in Firestore.
+     * Safe to call many times: it only starts once.
+     * (A query filtered by status == PUBLISHED is the one our security rules allow for everyone.)
+     */
+    fun start() {
+        if (publishedListener != null) return
+        publishedListener = FirebaseFirestore.getInstance()
+            .collection("announcements")
+            .whereEqualTo("status", PublishStatus.PUBLISHED.name)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("AnnouncementStore", "Listen failed", error)
+                    publishedListener = null
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    items = snapshot.documents
+                        .mapNotNull { doc ->
+                            doc.toObject(Announcement::class.java)?.copy(id = doc.id)
+                        }
+                        .sortedByDescending { it.createdAt }
+                }
+            }
+    }
+
+    /** Stops listening and clears the list. Call this when the user signs out. */
+    fun stop() {
+        publishedListener?.remove()
+        publishedListener = null
+        items = emptyList()
+    }
 
     fun publish(
         title: String,

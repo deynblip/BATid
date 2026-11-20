@@ -14,7 +14,8 @@ data class Announcement(
     val authorName: String = "",
     val authorRole: String = UserRole.ADMIN.name,
     val createdAt: Long = 0L,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    val linkUrl: String = ""
 )
 
 val Announcement.categoryEnum: Category get() = Category.fromName(category)

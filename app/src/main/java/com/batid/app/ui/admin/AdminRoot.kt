@@ -60,6 +60,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
 
     // Shared with the student side: whatever changes here changes there.
     val announcements = AnnouncementStore.items
+    LaunchedEffect(Unit) { AnnouncementStore.start() }
 
     fun goToTab(route: String) {
         navController.navigate(route) {

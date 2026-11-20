@@ -87,6 +87,7 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
 // Create notification channels, mark push as active, and ask for permission (Android 13+).
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
+        AnnouncementStore.start()
         NotificationHelper.createChannels(context)
         NotificationPrefs.setActive(context, true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

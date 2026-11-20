@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.material.icons.outlined.Dashboard
 import com.batid.app.data.model.Category
 import com.batid.app.data.model.Program
 import com.batid.app.data.model.UserProfile
@@ -81,6 +82,7 @@ fun ProfileScreen(
     onChangeProgram: (Program) -> Unit,
     onChangeYear: (YearLevel) -> Unit,
     onSignOut: () -> Unit,
+    onOpenCouncilDashboard: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -153,6 +155,16 @@ fun ProfileScreen(
                         general = it
                         NotificationPrefs.setEnabled(context, Category.GENERAL, it)
                     })
+                }
+
+                if (onOpenCouncilDashboard != null) {
+                    Spacer(Modifier.size(6.dp))
+                    BatidButton(
+                        text = "Council dashboard",
+                        onClick = onOpenCouncilDashboard,
+                        leadingIcon = Icons.Outlined.Dashboard,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 Spacer(Modifier.size(6.dp))

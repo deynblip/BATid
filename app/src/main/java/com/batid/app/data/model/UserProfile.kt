@@ -9,7 +9,9 @@ data class UserProfile(
     val program: String = "",
     val yearLevel: String = "",
     /** e.g. "CS - 3101" */
-    val section: String = ""
+    val section: String = "",
+    /** Secret code typed by faculty/council at sign up. The Firestore rules check it. */
+    val roleCode: String = ""
 )
 
 val UserProfile.roleEnum: UserRole get() = UserRole.fromName(role)

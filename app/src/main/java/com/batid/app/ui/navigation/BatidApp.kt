@@ -16,13 +16,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.batid.app.data.network.ConnectivityObserver
 import com.batid.app.ui.admin.AdminRoot
-import com.batid.app.ui.auth.AdminSignInScreen
 import com.batid.app.ui.auth.CreateAccountScreen
 import com.batid.app.ui.auth.SplashScreen
 import com.batid.app.ui.auth.StudentSignInScreen
 import com.batid.app.ui.auth.WelcomeScreen
 import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.student.StudentRoot
+import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
 
@@ -53,7 +53,10 @@ fun BatidApp() {
                         AuthRepository.loadCurrentProfile { profile ->
                             when {
                                 profile == null -> go(Routes.WELCOME)
-                                profile.roleEnum.canPublish -> go(Routes.ADMIN_ROOT)
+                                profile.roleEnum.usesAdminSide -> go(Routes.ADMIN_ROOT)
+                                // Council: balik sa huling side na ginamit (student o dashboard).
+                                profile.roleEnum == UserRole.COUNCIL &&
+                                        SidePrefs.councilOnAdminSide(context) -> go(Routes.ADMIN_ROOT)
                                 else -> go(Routes.STUDENT_ROOT)
                             }
                         }
@@ -71,8 +74,11 @@ fun BatidApp() {
             composable(Routes.STUDENT_SIGN_IN) {
                 StudentSignInScreen(
                     onBack = { navController.popBackStack() },
-                    onSignedIn = { navController.enterRoot(Routes.STUDENT_ROOT) },
-                    onAdminSignIn = { navController.navigate(Routes.ADMIN_SIGN_IN) }
+                    onSignedIn = { role ->
+                        navController.enterRoot(
+                            if (role.usesAdminSide) Routes.ADMIN_ROOT else Routes.STUDENT_ROOT
+                        )
+                    }
                 )
             }
             composable(Routes.CREATE_ACCOUNT) {
@@ -87,19 +93,30 @@ fun BatidApp() {
                     }
                 )
             }
-            composable(Routes.ADMIN_SIGN_IN) {
-                AdminSignInScreen(
-                    onBack = { navController.popBackStack() },
-                    onSignedIn = { navController.enterRoot(Routes.ADMIN_ROOT) }
+            composable(Routes.STUDENT_ROOT) {
+                StudentRoot(
+                    onSignOut = {
+                        SidePrefs.setCouncilOnAdminSide(context, false)
+                        navController.signOutToWelcome()
+                    },
+                    onOpenCouncilDashboard = {
+                        SidePrefs.setCouncilOnAdminSide(context, true)
+                        navController.enterRoot(Routes.ADMIN_ROOT)
+                    }
                 )
             }
-            composable(Routes.STUDENT_ROOT) {
-                StudentRoot(onSignOut = { navController.signOutToWelcome() })
-            }
-            composable(Routes.ADMIN_ROOT) { AdminRoot(onSignOut = {
-                    AuthRepository.signOut()
-                    navController.signOutToWelcome()
-                })
+            composable(Routes.ADMIN_ROOT) {
+                AdminRoot(
+                    onSignOut = {
+                        SidePrefs.setCouncilOnAdminSide(context, false)
+                        AuthRepository.signOut()
+                        navController.signOutToWelcome()
+                    },
+                    onStudentView = {
+                        SidePrefs.setCouncilOnAdminSide(context, false)
+                        navController.enterRoot(Routes.STUDENT_ROOT)
+                    }
+                )
             }
         }
     }

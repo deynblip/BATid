@@ -8,6 +8,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 
 /**
  * The file that talks sa Firebase Auth (login) at Firestore (users/{uid}).
@@ -37,17 +38,28 @@ object AuthRepository {
                     onDone("Something went wrong. Please try again.")
                     return@addOnSuccessListener
                 }
-                val saved = profile.copy(
-                    uid = user.uid,
-                    email = cleanEmail,
-                    role = UserRole.STUDENT.name // laging STUDENT ang bagong account
-                )
+                val saved = profile.copy(uid = user.uid, email = cleanEmail)
                 db.collection("users").document(user.uid).set(saved)
                     .addOnSuccessListener {
                         user.sendEmailVerification()
                         onDone(null)
                     }
-                    .addOnFailureListener { e -> onDone(friendlyError(e)) }
+                    .addOnFailureListener { e ->
+                        val message =
+                            if (e is FirebaseFirestoreException &&
+                                e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                            ) {
+                                if (profile.role == UserRole.STUDENT.name) {
+                                    "Could not create your profile. Please try again."
+                                } else {
+                                    "Invalid code. Please check it and try again."
+                                }
+                            } else {
+                                friendlyError(e)
+                            }
+                        // Tanggalin ang bagong Auth account para makapag-try ulit gamit ang parehong email.
+                        user.delete().addOnCompleteListener { onDone(message) }
+                    }
             }
             .addOnFailureListener { e -> onDone(friendlyError(e)) }
     }

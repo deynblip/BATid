@@ -65,10 +65,11 @@ private fun Announcement.isEdited() = isPublished && updatedAt > createdAt
 fun DashboardScreen(
     announcements: List<Announcement>,
     onNewAnnouncement: () -> Unit,
-    onEmergencyAlert: () -> Unit,
+    onEmergencyAlert: (() -> Unit)?,
     onSeeAll: () -> Unit,
     onOpenAnnouncement: (String) -> Unit,
     onSignOut: () -> Unit,
+    onStudentView: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Same announcements students can see (published only), newest first.
@@ -77,7 +78,7 @@ fun DashboardScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        AdminHeader(onSignOut = onSignOut)
+        AdminHeader(onSignOut = onSignOut, onStudentView = onStudentView)
         BatidSheet(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -111,16 +112,18 @@ fun DashboardScreen(
                         onClick = onNewAnnouncement
                     )
                 }
-                item {
-                    ActionCard(
-                        title = "Send an emergency alert",
-                        subtitle = "Class suspensions and urgent notices.",
-                        icon = Icons.Outlined.WarningAmber,
-                        iconBackground = EmergencyRed,
-                        container = EmergencyTint,
-                        border = EmergencyBorder,
-                        onClick = onEmergencyAlert
-                    )
+                if (onEmergencyAlert != null) {
+                    item {
+                        ActionCard(
+                            title = "Send an emergency alert",
+                            subtitle = "Class suspensions and urgent notices.",
+                            icon = Icons.Outlined.WarningAmber,
+                            iconBackground = EmergencyRed,
+                            container = EmergencyTint,
+                            border = EmergencyBorder,
+                            onClick = onEmergencyAlert
+                        )
+                    }
                 }
                 item {
                     Row(
@@ -152,7 +155,7 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun AdminHeader(onSignOut: () -> Unit) {
+private fun AdminHeader(onSignOut: () -> Unit, onStudentView: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -178,11 +181,17 @@ private fun AdminHeader(onSignOut: () -> Unit) {
                     modifier = Modifier.size(width = 72.dp, height = 44.dp)
                 )
                 Text(
-                    text = "Admin",
+                    text = if (onStudentView != null) "Council" else "Admin",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = Color.White.copy(alpha = 0.9f)
                 )
             }
+            if (onStudentView != null) {
+                TextButton(onClick = onStudentView) {
+                    Text("Student view", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                }
+            }
+
             IconButton(onClick = onSignOut) {
                 Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = Color.White)
             }

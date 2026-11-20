@@ -41,10 +41,13 @@ enum class YearLevel(val chipLabel: String, val label: String, val topicKey: Str
 }
 
 enum class UserRole {
-    STUDENT, FACULTY, ADMIN;
+    STUDENT, COUNCIL, FACULTY, ADMIN;
 
-    /** Only faculty and admins may publish and manage announcements. */
+    /** Faculty, council and admins may publish announcements (council has limits). */
     val canPublish: Boolean get() = this != STUDENT
+
+    /** Only faculty and admin go straight to the admin dashboard. Council starts in the student feed. */
+    val usesAdminSide: Boolean get() = this == FACULTY || this == ADMIN
 
     companion object {
         fun fromName(name: String?): UserRole =

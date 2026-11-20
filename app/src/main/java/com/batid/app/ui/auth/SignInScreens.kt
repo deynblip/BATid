@@ -34,7 +34,7 @@ import com.batid.app.data.model.roleEnum
 
 /** Student sign in. */
 @Composable
-fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignIn: () -> Unit) {
+fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: (UserRole) -> Unit) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
@@ -125,11 +125,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
                         when {
                             error != null -> loginError = error
                             profile == null -> loginError = "Something went wrong. Please try again."
-                            profile.roleEnum.canPublish -> {
-                                AuthRepository.signOut()
-                                loginError = "This log in is for students only. Please use Faculty or admin log in."
-                            }
-                            else -> onSignedIn()
+                            else -> onSignedIn(profile.roleEnum)
                         }
                     }
                 }
@@ -146,9 +142,6 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit, onAdminSignI
                 }
             }) {
                 Text("Forgot password?", style = MaterialTheme.typography.labelSmall)
-            }
-            TextButton(onClick = onAdminSignIn) {
-                Text("Faculty or admin log in", style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -275,38 +268,73 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
         }
     }
 }
-
-/** Create account for students. Same layout as the sign-in form, with extra fields. */
+/**
+ * Create account. Three kinds: Student, Student Council, Faculty / Staff.
+ * Council and Faculty need a secret code (checked by the Firestore rules, never in the app).
+ */
 @Composable
 fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -> Unit) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    var accountType by rememberSaveable { mutableStateOf(UserRole.STUDENT.name) }
     var fullName by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var program by rememberSaveable { mutableStateOf<String?>(null) }
     var year by rememberSaveable { mutableStateOf<String?>(null) }
     var section by rememberSaveable { mutableStateOf("") }
+    var roleCode by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
 
+    val isFaculty = accountType == UserRole.FACULTY.name
+    val needsCode = accountType != UserRole.STUDENT.name
+    val codeLabel = if (isFaculty) "Faculty code" else "Council code"
+
     val nameOk = fullName.isNotBlank()
     val emailOk = isUniversityEmail(email)
-    val programOk = program != null
-    val yearOk = year != null
-    val sectionOk = section.isNotBlank()
+    // Faculty / Staff do not have a program, year level or section.
+    val programOk = isFaculty || program != null
+    val yearOk = isFaculty || year != null
+    val sectionOk = isFaculty || section.isNotBlank()
+    val codeOk = !needsCode || roleCode.isNotBlank()
     val passwordOk = password.length >= 8
     val confirmOk = confirm.isNotEmpty() && confirm == password
 
     AuthFormScreen(onBack = onBack, showDescription = false, cardMaxHeightFraction = 0.78f) {
         Text("Create account", style = MaterialTheme.typography.titleLarge, color = InkNavy)
         Text(
-            "Use your university account to get announcements for your program and year.",
+            when (accountType) {
+                UserRole.FACULTY.name -> "For CICS faculty and staff. You need the faculty code from the admin."
+                UserRole.COUNCIL.name -> "For Student Council officers. You need the council code from the admin."
+                else -> "Use your university account to get announcements for your program and year."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = SlateGray
         )
         Spacer(Modifier.height(16.dp))
+
+        AuthLabel("I am a")
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterPill(
+                label = "Student",
+                selected = accountType == UserRole.STUDENT.name,
+                onClick = { accountType = UserRole.STUDENT.name }
+            )
+            FilterPill(
+                label = "Council",
+                selected = accountType == UserRole.COUNCIL.name,
+                onClick = { accountType = UserRole.COUNCIL.name }
+            )
+            FilterPill(
+                label = "Faculty / Staff",
+                selected = isFaculty,
+                onClick = { accountType = UserRole.FACULTY.name }
+            )
+        }
+        Spacer(Modifier.height(12.dp))
 
         AuthTextField(
             label = "Full name",
@@ -326,40 +354,54 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
         )
         Spacer(Modifier.height(12.dp))
 
-        AuthLabel("Program")
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Program.entries.forEach { p ->
-                FilterPill(label = p.label, selected = program == p.name, onClick = { program = p.name })
+        if (!isFaculty) {
+            AuthLabel("Program")
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Program.entries.forEach { p ->
+                    FilterPill(label = p.label, selected = program == p.name, onClick = { program = p.name })
+                }
             }
-        }
-        AuthErrorText(if (submitted && !programOk) "Choose your program." else null)
-        Spacer(Modifier.height(12.dp))
+            AuthErrorText(if (submitted && !programOk) "Choose your program." else null)
+            Spacer(Modifier.height(12.dp))
 
-        AuthLabel("Year level")
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            YearLevel.entries.filter { it != YearLevel.ALL }.forEach { y ->
-                FilterPill(label = y.chipLabel, selected = year == y.name, onClick = { year = y.name })
+            AuthLabel("Year level")
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                YearLevel.entries.filter { it != YearLevel.ALL }.forEach { y ->
+                    FilterPill(label = y.chipLabel, selected = year == y.name, onClick = { year = y.name })
+                }
             }
-        }
-        AuthErrorText(if (submitted && !yearOk) "Choose your year level." else null)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Choose carefully. Your program can only be changed by an admin. You can update your year level later in Profile.",
-            style = MaterialTheme.typography.labelSmall,
-            color = SlateGray
-        )
-        Spacer(Modifier.height(12.dp))
+            AuthErrorText(if (submitted && !yearOk) "Choose your year level." else null)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Choose carefully. Your program can only be changed by an admin. You can update your year level later in Profile.",
+                style = MaterialTheme.typography.labelSmall,
+                color = SlateGray
+            )
+            Spacer(Modifier.height(12.dp))
 
-        AuthTextField(
-            label = "Section",
-            value = section,
-            onValueChange = { section = it },
-            placeholder = "e.g. CS - 3101",
-            error = if (submitted && !sectionOk) "Enter your section." else null
-        )
-        Spacer(Modifier.height(12.dp))
+            AuthTextField(
+                label = "Section",
+                value = section,
+                onValueChange = { section = it },
+                placeholder = "e.g. CS - 3101",
+                error = if (submitted && !sectionOk) "Enter your section." else null
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (needsCode) {
+            AuthTextField(
+                label = codeLabel,
+                value = roleCode,
+                onValueChange = { roleCode = it },
+                placeholder = "Enter the code from the admin",
+                error = if (submitted && !codeOk) "Enter the $codeLabel." else null
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
         AuthTextField(
             label = "Password",
             value = password,
@@ -387,7 +429,7 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
             enabled = !loading,
             onClick = {
                 submitted = true
-                if (nameOk && emailOk && programOk && yearOk && sectionOk && passwordOk && confirmOk) {
+                if (nameOk && emailOk && programOk && yearOk && sectionOk && codeOk && passwordOk && confirmOk) {
                     focusManager.clearFocus()
                     loading = true
                     AuthRepository.signUp(
@@ -396,10 +438,12 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
                         profile = UserProfile(
                             fullName = fullName.trim(),
                             email = email.trim().lowercase(),
-                            role = UserRole.STUDENT.name,
-                            program = program.orEmpty(),
-                            yearLevel = year.orEmpty(),
-                            section = section.trim()
+                            role = accountType,
+                            // Faculty / Staff: default values only (the rules need a valid program and year).
+                            program = if (isFaculty) Program.BSCS.name else program.orEmpty(),
+                            yearLevel = if (isFaculty) YearLevel.FIRST.name else year.orEmpty(),
+                            section = if (isFaculty) "" else section.trim(),
+                            roleCode = if (needsCode) roleCode.trim() else ""
                         )
                     ) { error ->
                         loading = false

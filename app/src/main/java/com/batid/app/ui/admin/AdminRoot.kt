@@ -24,6 +24,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material.icons.outlined.Person
+import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
@@ -39,7 +41,8 @@ import com.batid.app.ui.navigation.AdminRoutes
 private val adminTabs = listOf(
     BottomBarItem(AdminRoutes.DASHBOARD, "Dashboard", Icons.Outlined.Dashboard),
     BottomBarItem(AdminRoutes.NEW, "New", Icons.Outlined.AddCircleOutline),
-    BottomBarItem(AdminRoutes.MANAGE, "Manage", Icons.Outlined.EditNote)
+    BottomBarItem(AdminRoutes.MANAGE, "Manage", Icons.Outlined.EditNote),
+    BottomBarItem(AdminRoutes.PROFILE, "Profile", Icons.Outlined.Person)
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -98,8 +101,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                     },
                     onSeeAll = { goToTab(AdminRoutes.MANAGE) },
                     onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.edit(id)) },
-                    onSignOut = onSignOut,
-                    onStudentView = if (isCouncil) onStudentView else null
+                    roleLabel = if (isCouncil) "Council" else "Admin"
                 )
             }
             // "New" bottom tab: same form, no back arrow. After publishing, go to the dashboard.
@@ -118,6 +120,13 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                         AnnouncementStore.delete(id)
                         Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
                     }
+                )
+            }
+            composable(AdminRoutes.PROFILE) {
+                AdminProfileScreen(
+                    profile = AuthRepository.currentProfile ?: UserProfile(),
+                    onSignOut = onSignOut,
+                    onStudentView = if (isCouncil) onStudentView else null
                 )
             }
             // Opened from the dashboard's "New announcement" button.

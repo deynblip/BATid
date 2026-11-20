@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validProgram(p) {
+      return p in ['BSCS', 'BSIT'];
+    }
+
+    function validYear(y) {
+      return y in ['FIRST', 'SECOND', 'THIRD', 'FOURTH'];
+    }
+
+    function schoolEmail() {
+      return request.auth.token.email.matches('.*@g\\.batstate-u\\.edu\\.ph');
+    }
+
+    // The secret codes live in config/*. Clients can never read them (no rule below).
+    function validFacultyCode() {
+      return request.resource.data.roleCode ==
+        get(/databases/$(database)/documents/config/facultyCode).data.code;
+    }
+
+    function validCouncilCode() {
+      return request.resource.data.roleCode ==
+        get(/databases/$(database)/documents/config/councilCode).data.code;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      // New accounts: STUDENT freely, FACULTY or COUNCIL only with the right code.
+      // ADMIN can never be created here (set in the Firebase console only).
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && validProgram(request.resource.data.program)
+        && validYear(request.resource.data.yearLevel)
+        && schoolEmail()
+        && (
+          request.resource.data.role == 'STUDENT'
+          || (request.resource.data.role == 'FACULTY' && validFacultyCode())
+          || (request.resource.data.role == 'COUNCIL' && validCouncilCode())
+        );
+
+      // A user can change ONLY yearLevel. Role, program, name, email, section, uid are locked.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['yearLevel'])
+        && validYear(request.resource.data.yearLevel);
+
+      allow delete: if false;
+    }
+
+    // config/* has NO read or write rule on purpose: only the console can touch it.
+  }
+}

@@ -28,6 +28,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.batid.app.data.model.UserRole
+import com.batid.app.data.model.roleEnum
 import com.batid.app.ui.components.BatidBottomBar
 import com.batid.app.ui.components.BottomBarItem
 import com.batid.app.ui.components.LocalIsOnline
@@ -63,7 +65,7 @@ private val studentTabs = listOf(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun StudentRoot(onSignOut: () -> Unit) {
+fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
 
     StatusBarAppearance(darkIcons = false)
     val navController = rememberNavController()
@@ -185,7 +187,9 @@ fun StudentRoot(onSignOut: () -> Unit) {
                         NotificationPrefs.reset(context)
                         AuthRepository.signOut()
                         onSignOut()
-                    }
+                    },
+                    onOpenCouncilDashboard =
+                        if (profile.roleEnum == UserRole.COUNCIL) onOpenCouncilDashboard else null
                 )
             }
             composable(

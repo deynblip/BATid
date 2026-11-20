@@ -24,6 +24,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material.icons.outlined.Person
+import com.batid.app.data.model.UserProfile
+import com.batid.app.data.model.UserRole
+import com.batid.app.data.model.roleEnum
+import com.batid.app.data.remote.AuthRepository
 import androidx.navigation.navArgument
 import com.batid.app.data.repository.AnnouncementStore
 import com.batid.app.ui.components.BatidBottomBar
@@ -36,14 +41,16 @@ import com.batid.app.ui.navigation.AdminRoutes
 private val adminTabs = listOf(
     BottomBarItem(AdminRoutes.DASHBOARD, "Dashboard", Icons.Outlined.Dashboard),
     BottomBarItem(AdminRoutes.NEW, "New", Icons.Outlined.AddCircleOutline),
-    BottomBarItem(AdminRoutes.MANAGE, "Manage", Icons.Outlined.EditNote)
+    BottomBarItem(AdminRoutes.MANAGE, "Manage", Icons.Outlined.EditNote),
+    BottomBarItem(AdminRoutes.PROFILE, "Profile", Icons.Outlined.Person)
 )
 
-/** Everything a signed-in faculty member / admin sees. Students never reach this. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AdminRoot(onSignOut: () -> Unit) {
+fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
     StatusBarAppearance(darkIcons = false)
+    // Council lang ang may "Student view" na button.
+    val isCouncil = AuthRepository.currentProfile?.roleEnum == UserRole.COUNCIL
     val context = LocalContext.current
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -89,10 +96,12 @@ fun AdminRoot(onSignOut: () -> Unit) {
                 DashboardScreen(
                     announcements = announcements,
                     onNewAnnouncement = { navController.navigate(AdminRoutes.COMPOSE) },
-                    onEmergencyAlert = { navController.navigate(AdminRoutes.EMERGENCY) },
+                    onEmergencyAlert = if (isCouncil) null else {
+                        { navController.navigate(AdminRoutes.EMERGENCY) }
+                    },
                     onSeeAll = { goToTab(AdminRoutes.MANAGE) },
                     onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.edit(id)) },
-                    onSignOut = onSignOut
+                    roleLabel = if (isCouncil) "Council" else "Admin"
                 )
             }
             // "New" bottom tab: same form, no back arrow. After publishing, go to the dashboard.
@@ -111,6 +120,13 @@ fun AdminRoot(onSignOut: () -> Unit) {
                         AnnouncementStore.delete(id)
                         Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
                     }
+                )
+            }
+            composable(AdminRoutes.PROFILE) {
+                AdminProfileScreen(
+                    profile = AuthRepository.currentProfile ?: UserProfile(),
+                    onSignOut = onSignOut,
+                    onStudentView = if (isCouncil) onStudentView else null
                 )
             }
             // Opened from the dashboard's "New announcement" button.

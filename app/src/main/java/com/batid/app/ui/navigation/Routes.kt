@@ -28,6 +28,7 @@ object AdminRoutes {
     const val DASHBOARD = "dashboard"
     const val NEW = "new"
     const val MANAGE = "manage"
+    const val PROFILE = "admin_profile"
     const val COMPOSE = "compose"
     const val EMERGENCY = "emergency"
     const val EDIT_ARG = "id"

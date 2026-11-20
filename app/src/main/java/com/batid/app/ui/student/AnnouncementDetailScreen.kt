@@ -200,6 +200,7 @@ private fun initialsOf(name: String): String =
 private fun roleLabel(role: String): String = when (UserRole.fromName(role)) {
     UserRole.ADMIN -> "Administrator"
     UserRole.FACULTY -> "Faculty"
+    UserRole.COUNCIL -> "Student Council"
     UserRole.STUDENT -> ""
 }
 

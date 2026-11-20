@@ -3,6 +3,7 @@ package com.batid.app.data.repository
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -30,6 +31,18 @@ object AnnouncementStore {
     fun find(id: String): Announcement? = items.firstOrNull { it.id == id }
 
     private var publishedListener: ListenerRegistration? = null
+    private var draftsListener: ListenerRegistration? = null
+
+    // Two separate lists from Firestore, merged into `items`.
+    private var publishedList: List<Announcement> = emptyList()
+    private var draftList: List<Announcement> = emptyList()
+
+    /** Combines published + drafts into one list (no duplicates), newest first. */
+    private fun refreshItems() {
+        items = (publishedList + draftList)
+            .distinctBy { it.id }
+            .sortedByDescending { it.createdAt }
+    }
 
     /**
      * Starts listening to PUBLISHED announcements in Firestore.
@@ -48,19 +61,50 @@ object AnnouncementStore {
                     return@addSnapshotListener
                 }
                 if (snapshot != null) {
-                    items = snapshot.documents
-                        .mapNotNull { doc ->
-                            doc.toObject(Announcement::class.java)?.copy(id = doc.id)
-                        }
-                        .sortedByDescending { it.createdAt }
+                    publishedList = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Announcement::class.java)?.copy(id = doc.id)
+                    }
+                    refreshItems()
                 }
             }
+    }
+
+    /**
+     * Starts listening to DRAFT announcements (for the Manage tab).
+     * ADMIN sees all drafts; FACULTY / COUNCIL see only their own (matches our security rules).
+     */
+    fun startDrafts(uid: String, isAdmin: Boolean) {
+        if (draftsListener != null || uid.isBlank()) return
+        var query: Query = FirebaseFirestore.getInstance()
+            .collection("announcements")
+            .whereEqualTo("status", PublishStatus.DRAFT.name)
+        if (!isAdmin) {
+            query = query.whereEqualTo("authorId", uid)
+        }
+        draftsListener = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e("AnnouncementStore", "Drafts listen failed", error)
+                draftsListener = null
+                return@addSnapshotListener
+            }
+            if (snapshot != null) {
+                Log.d("AnnouncementStore", "drafts received: ${snapshot.size()}")
+                draftList = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Announcement::class.java)?.copy(id = doc.id)
+                }
+                refreshItems()
+            }
+        }
     }
 
     /** Stops listening and clears the list. Call this when the user signs out. */
     fun stop() {
         publishedListener?.remove()
         publishedListener = null
+        draftsListener?.remove()
+        draftsListener = null
+        publishedList = emptyList()
+        draftList = emptyList()
         items = emptyList()
     }
 

@@ -97,7 +97,7 @@ fun AnnouncementFormScreen(
         val cleanBody = body.trim()
 
         if (existing == null) {
-            AnnouncementStore.publish(cleanTitle, cleanBody, category, programs, year, status)
+            AnnouncementStore.publish(cleanTitle, cleanBody, category, programs, year, status) { toast(it) }
             toast(if (status == PublishStatus.PUBLISHED) "Announcement published" else "Draft saved")
             // Clear the form so the "New" tab is blank next time.
             title = ""
@@ -116,7 +116,7 @@ fun AnnouncementFormScreen(
             if (unchanged) {
                 toast("No changes to save")
             } else {
-                AnnouncementStore.update(existing.id, cleanTitle, cleanBody, category, programs, year, status)
+                AnnouncementStore.update(existing.id, cleanTitle, cleanBody, category, programs, year, status) { toast(it) }
                 toast(
                     when {
                         status == PublishStatus.DRAFT -> "Draft saved"
@@ -322,7 +322,7 @@ fun EmergencyAlertScreen(
                 TextButton(onClick = {
                     AnnouncementStore.publish(
                         title.trim(), body.trim(), Category.EMERGENCY, programs, year, PublishStatus.PUBLISHED
-                    )
+                    ) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                     Toast.makeText(context, "Emergency alert sent", Toast.LENGTH_SHORT).show()
                     showConfirm = false
                     onDone()

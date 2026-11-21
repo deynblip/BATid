@@ -2,6 +2,7 @@ package com.batid.app.data.remote
 
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
+import com.batid.app.data.repository.AnnouncementStore
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -118,6 +119,7 @@ object AuthRepository {
     }
 
     fun signOut() {
+        AnnouncementStore.stop()
         currentProfile = null
         auth.signOut()
     }

@@ -43,6 +43,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -301,5 +303,36 @@ private fun GoogleGLogo(modifier: Modifier = Modifier) {
             topLeft = Offset(size.width / 2f, size.height / 2f - stroke / 2f),
             size = Size(size.width / 2f, stroke)
         )
+    }
+
+}
+
+private val RuleMetGreen = Color(0xFF15803D)
+
+/** Live checklist under the Create Account password field. Each rule turns green when met. */
+@Composable
+fun PasswordRules(password: String) {
+    Column(modifier = Modifier.padding(top = 6.dp)) {
+        PasswordRule("At least 8 characters", password.length >= 8)
+        PasswordRule("Has a letter", password.any { it.isLetter() })
+        PasswordRule("Has a number", password.any { it.isDigit() })
+    }
+}
+
+@Composable
+private fun PasswordRule(text: String, met: Boolean) {
+    val color = if (met) RuleMetGreen else SlateGray
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 1.dp)
+    ) {
+        Icon(
+            imageVector = if (met) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = color)
     }
 }

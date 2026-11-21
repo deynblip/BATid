@@ -30,6 +30,44 @@ service cloud.firestore {
         get(/databases/$(database)/documents/config/councilCode).data.code;
     }
 
+    // ---- Roles (read from the signed-in user's own profile) ----
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return signedIn() && userRole() == 'ADMIN';
+    }
+
+    function isFaculty() {
+      return signedIn() && userRole() == 'FACULTY';
+    }
+
+    function isCouncil() {
+      return signedIn() && userRole() == 'COUNCIL';
+    }
+
+    function canPublish() {
+      return isAdmin() || isFaculty() || isCouncil();
+    }
+
+    // ---- Announcement checks ----
+    function validAnnouncement(d) {
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 200
+        && d.body is string && d.body.size() <= 5000
+        && d.category in ['ACADEMICS', 'EVENTS', 'GENERAL', 'EMERGENCY']
+        && d.programs is list && d.programs.size() > 0 && d.programs.size() <= 2
+        && d.programs.hasOnly(['BSCS', 'BSIT'])
+        && d.yearLevel in ['ALL', 'FIRST', 'SECOND', 'THIRD', 'FOURTH']
+        && d.status in ['DRAFT', 'PUBLISHED']
+        && (!('linkUrl' in d) || (d.linkUrl is string && d.linkUrl.size() <= 500));
+    }
+
+    // Only FACULTY and ADMIN may use the EMERGENCY category.
+    function categoryAllowed(d) {
+      return d.category != 'EMERGENCY' || isFaculty() || isAdmin();
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
 
@@ -54,6 +92,32 @@ service cloud.firestore {
         && validYear(request.resource.data.yearLevel);
 
       allow delete: if false;
+    }
+
+    match /announcements/{announcementId} {
+      // Everyone signed in reads PUBLISHED posts. A DRAFT is readable only by its author or ADMIN.
+      allow read: if signedIn()
+        && (
+          resource.data.status == 'PUBLISHED'
+          || resource.data.authorId == request.auth.uid
+          || isAdmin()
+        );
+
+      allow create: if signedIn()
+        && canPublish()
+        && request.resource.data.authorId == request.auth.uid
+        && validAnnouncement(request.resource.data)
+        && categoryAllowed(request.resource.data);
+
+      // ADMIN edits all. FACULTY and COUNCIL edit only their own posts.
+      allow update: if signedIn()
+        && (isAdmin() || (canPublish() && resource.data.authorId == request.auth.uid))
+        && request.resource.data.authorId == resource.data.authorId
+        && validAnnouncement(request.resource.data)
+        && categoryAllowed(request.resource.data);
+
+      allow delete: if signedIn()
+        && (isAdmin() || (canPublish() && resource.data.authorId == request.auth.uid));
     }
 
     // config/* has NO read or write rule on purpose: only the console can touch it.

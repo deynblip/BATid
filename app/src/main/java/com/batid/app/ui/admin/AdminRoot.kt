@@ -60,6 +60,13 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
 
     // Shared with the student side: whatever changes here changes there.
     val announcements = AnnouncementStore.items
+    LaunchedEffect(Unit) {
+        AnnouncementStore.start()
+        val me = AuthRepository.currentProfile
+        if (me != null) {
+            AnnouncementStore.startDrafts(me.uid, me.roleEnum == UserRole.ADMIN)
+        }
+    }
 
     fun goToTab(route: String) {
         navController.navigate(route) {
@@ -117,7 +124,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                     announcements = announcements,
                     onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
                     onDelete = { id ->
-                        AnnouncementStore.delete(id)
+                        AnnouncementStore.delete(id) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                         Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
                     }
                 )

@@ -92,7 +92,7 @@ fun StudentSignInScreen(onBack: () -> Unit, onSignedIn: (UserRole) -> Unit) {
             label = "University email",
             value = email,
             onValueChange = { email = it; loginError = null },
-            placeholder = "sr-code@g.batstate-u.edu.ph",
+            placeholder = "sr-code/name@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
             error = when {
                 submitted && !emailOk -> "Enter your $AuthEmailDomain email."
@@ -207,7 +207,7 @@ fun AdminSignInScreen(onBack: () -> Unit, onSignedIn: () -> Unit) {
             label = "University email",
             value = email,
             onValueChange = { email = it; loginError = null },
-            placeholder = "name@g.batstate-u.edu.ph",
+            placeholder = "sr-code/name@g.batstate-u.edu.ph",
             keyboardType = KeyboardType.Email,
             error = when {
                 submitted && !emailOk -> "Enter your $AuthEmailDomain email."
@@ -299,7 +299,10 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
     val yearOk = isFaculty || year != null
     val sectionOk = isFaculty || section.isNotBlank()
     val codeOk = !needsCode || roleCode.isNotBlank()
-    val passwordOk = password.length >= 8
+    // At least 8 characters, with at least one letter AND one number.
+    val passwordOk = password.length >= 8 &&
+            password.any { it.isLetter() } &&
+            password.any { it.isDigit() }
     val confirmOk = confirm.isNotEmpty() && confirm == password
 
     AuthFormScreen(onBack = onBack, showDescription = false, cardMaxHeightFraction = 0.78f) {
@@ -406,12 +409,14 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
             label = "Password",
             value = password,
             onValueChange = { password = it },
-            placeholder = "At least 8 characters",
+            placeholder = "Create a password",
             isPassword = true,
             keyboardType = KeyboardType.Password,
-            error = if (submitted && !passwordOk) "Use at least 8 characters." else null
+            error = if (submitted && !passwordOk) "Your password does not meet the rules below." else null
         )
+        PasswordRules(password)
         Spacer(Modifier.height(12.dp))
+
         AuthTextField(
             label = "Confirm password",
             value = confirm,
@@ -448,7 +453,6 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
                     ) { error ->
                         loading = false
                         if (error == null) {
-                            // Mag-log in muna pagkatapos; hindi pa tayo pumapasok sa app
                             AuthRepository.signOut()
                             onCreated()
                         } else {

@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.batid.app.data.model.Announcement
 import com.batid.app.data.model.Category
@@ -51,6 +52,7 @@ import com.batid.app.ui.theme.SlateGray
 private val StringSetSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
 private val FormCategories = listOf(Category.ACADEMICS, Category.EVENTS, Category.GENERAL)
 private val AllPrograms: Set<String> = Program.entries.map { it.name }.toSet()
+private const val MaxLinkLength = 500
 
 /**
  * Create a new announcement ([existing] = null) or edit one.
@@ -68,6 +70,7 @@ fun AnnouncementFormScreen(
 
     var title by rememberSaveable(existing?.id) { mutableStateOf(existing?.title.orEmpty()) }
     var body by rememberSaveable(existing?.id) { mutableStateOf(existing?.body.orEmpty()) }
+    var linkUrl by rememberSaveable(existing?.id) { mutableStateOf(existing?.linkUrl.orEmpty()) }
     var categoryName by rememberSaveable(existing?.id) {
         mutableStateOf((existing?.categoryEnum ?: Category.GENERAL).name)
     }
@@ -86,22 +89,34 @@ fun AnnouncementFormScreen(
     val titleOk = title.isNotBlank()
     val bodyOk = body.isNotBlank()
     val programOk = programs.isNotEmpty()
+    // Link is optional. If filled: must start with http:// or https:// and be at most 500 characters.
+    val cleanLink = linkUrl.trim()
+    val linkOk = cleanLink.isEmpty() || (
+            (cleanLink.startsWith("http://", ignoreCase = true) || cleanLink.startsWith("https://", ignoreCase = true)) &&
+                    cleanLink.length <= MaxLinkLength
+            )
+    val linkError = when {
+        linkOk -> null
+        cleanLink.length > MaxLinkLength -> "Link is too long (max $MaxLinkLength characters)."
+        else -> "Link must start with http:// or https://"
+    }
     val categoryChoices = if (existing?.isEmergency == true) Category.entries.toList() else FormCategories
 
     fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
 
     fun submit(status: PublishStatus) {
         submitted = true
-        if (!titleOk || !bodyOk || !programOk) return
+        if (!titleOk || !bodyOk || !programOk || !linkOk) return
         val cleanTitle = title.trim()
         val cleanBody = body.trim()
 
         if (existing == null) {
-            AnnouncementStore.publish(cleanTitle, cleanBody, category, programs, year, status) { toast(it) }
+            AnnouncementStore.publish(cleanTitle, cleanBody, category, programs, year, status, cleanLink) { toast(it) }
             toast(if (status == PublishStatus.PUBLISHED) "Announcement published" else "Draft saved")
             // Clear the form so the "New" tab is blank next time.
             title = ""
             body = ""
+            linkUrl = ""
             categoryName = Category.GENERAL.name
             programNames = AllPrograms
             yearName = YearLevel.ALL.name
@@ -109,6 +124,7 @@ fun AnnouncementFormScreen(
         } else {
             val unchanged = existing.title == cleanTitle &&
                     existing.body == cleanBody &&
+                    existing.linkUrl == cleanLink &&
                     existing.categoryEnum == category &&
                     existing.programEnums.toSet() == programs.toSet() &&
                     existing.yearLevelEnum == year &&
@@ -116,7 +132,7 @@ fun AnnouncementFormScreen(
             if (unchanged) {
                 toast("No changes to save")
             } else {
-                AnnouncementStore.update(existing.id, cleanTitle, cleanBody, category, programs, year, status) { toast(it) }
+                AnnouncementStore.update(existing.id, cleanTitle, cleanBody, category, programs, year, status, cleanLink) { toast(it) }
                 toast(
                     when {
                         status == PublishStatus.DRAFT -> "Draft saved"
@@ -158,6 +174,16 @@ fun AnnouncementFormScreen(
                         placeholder = "Write the announcement. Leave a blank line between paragraphs.",
                         minLines = 6,
                         error = if (submitted && !bodyOk) "Enter the message." else null
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    FormField(
+                        label = "Link (optional)",
+                        value = linkUrl,
+                        onValueChange = { linkUrl = it },
+                        placeholder = "https://forms.gle/... or a Facebook post link",
+                        singleLine = true,
+                        isLink = true,
+                        error = if (submitted) linkError else null
                     )
                     Spacer(Modifier.height(16.dp))
                     AuthLabel("Category")
@@ -397,6 +423,7 @@ private fun FormField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = false,
     minLines: Int = 1,
+    isLink: Boolean = false,
     error: String? = null
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -413,7 +440,8 @@ private fun FormField(
             shape = RoundedCornerShape(10.dp),
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = InkNavy),
             keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Sentences,
+                capitalization = if (isLink) KeyboardCapitalization.None else KeyboardCapitalization.Sentences,
+                keyboardType = if (isLink) KeyboardType.Uri else KeyboardType.Text,
                 imeAction = if (singleLine) ImeAction.Next else ImeAction.Default
             ),
             colors = OutlinedTextFieldDefaults.colors(

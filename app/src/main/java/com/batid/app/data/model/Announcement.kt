@@ -38,3 +38,10 @@ fun Announcement.isFor(program: Program?, year: YearLevel): Boolean =
             program != null &&
             programs.any { it.equals(program.name, ignoreCase = true) } &&
             (yearLevelEnum == YearLevel.ALL || yearLevelEnum == year)
+
+fun feedFor(program: Program?, year: YearLevel, source: List<Announcement>): List<Announcement> =
+    source.filter { it.isFor(program, year) }
+        .sortedWith(
+            compareByDescending<Announcement> { it.isEmergency }
+                .thenByDescending { it.createdAt }
+        )

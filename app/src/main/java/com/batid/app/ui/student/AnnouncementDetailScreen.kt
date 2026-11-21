@@ -1,3 +1,4 @@
+
 package com.batid.app.ui.student
 
 import androidx.compose.foundation.BorderStroke
@@ -53,6 +54,13 @@ import com.batid.app.ui.theme.SlateGray
 import com.batid.app.util.formatDateTime
 import com.batid.app.util.relativeTime
 import com.batid.app.util.editedLabel
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.batid.app.ui.theme.EmergencyRed
 
 @Composable
 fun AnnouncementDetailScreen(
@@ -60,8 +68,11 @@ fun AnnouncementDetailScreen(
     isSaved: Boolean,
     onToggleSave: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxSize()) {
         BatidHeader(title = "Announcements", onBack = onBack)
         BatidSheet(modifier = Modifier.weight(1f)) {
@@ -71,6 +82,31 @@ fun AnnouncementDetailScreen(
                     message = "It may have been removed."
                 )
             } else {
+                if (showDeleteDialog && onDelete != null) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteDialog = false },
+                        containerColor = Color.White,
+                        title = { Text("Delete announcement?", style = MaterialTheme.typography.titleMedium, color = InkNavy) },
+                        text = {
+                            Text(
+                                "\"${announcement.title}\" will be removed for everyone, including students. This can't be undone.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SlateGray
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showDeleteDialog = false
+                                onDelete()
+                            }) { Text("Delete", color = EmergencyRed, style = MaterialTheme.typography.labelLarge) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteDialog = false }) {
+                                Text("Cancel", color = NavyBlue, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    )
+                }
                 Column(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier
@@ -118,12 +154,30 @@ fun AnnouncementDetailScreen(
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        BatidButton(
-                            text = if (isSaved) "Saved" else "Save announcement",
-                            onClick = onToggleSave,
-                            leadingIcon = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (onEdit != null || onDelete != null) {
+                            if (onEdit != null) {
+                                BatidButton(
+                                    text = "Edit",
+                                    onClick = onEdit,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (onDelete != null) {
+                                BatidButton(
+                                    text = "Delete",
+                                    onClick = { showDeleteDialog = true },
+                                    outlined = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        } else {
+                            BatidButton(
+                                text = if (isSaved) "Saved" else "Save announcement",
+                                onClick = onToggleSave,
+                                leadingIcon = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                         BatidButton(
                             text = "Back",
                             onClick = onBack,

@@ -34,4 +34,6 @@ object AdminRoutes {
     const val EDIT_ARG = "id"
     const val EDIT = "edit/{$EDIT_ARG}"
     fun edit(id: String) = "edit/$id"
+    const val DETAIL = "detail/{$EDIT_ARG}"
+    fun detail(id: String) = "detail/$id"
 }

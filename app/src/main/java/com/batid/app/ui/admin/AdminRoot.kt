@@ -37,6 +37,7 @@ import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.components.NoConnectionBanner
 import com.batid.app.ui.components.StatusBarAppearance
 import com.batid.app.ui.navigation.AdminRoutes
+import com.batid.app.ui.student.AnnouncementDetailScreen
 
 private val adminTabs = listOf(
     BottomBarItem(AdminRoutes.DASHBOARD, "Dashboard", Icons.Outlined.Dashboard),
@@ -106,8 +107,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                     onEmergencyAlert = if (isCouncil) null else {
                         { navController.navigate(AdminRoutes.EMERGENCY) }
                     },
-                    onSeeAll = { goToTab(AdminRoutes.MANAGE) },
-                    onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.edit(id)) },
+                    onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.detail(id)) },
                     roleLabel = if (isCouncil) "Council" else "Admin"
                 )
             }
@@ -123,6 +123,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                 ManageAnnouncementsScreen(
                     announcements = announcements,
                     onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
+                    onOpen = { id -> navController.navigate(AdminRoutes.detail(id)) },
                     onDelete = { id ->
                         AnnouncementStore.delete(id) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                         Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
@@ -166,6 +167,35 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                         onDone = { navController.popBackStack() }
                     )
                 }
+            }
+            // Read-only detail. Edit/Delete only for ADMIN (all posts) or the post's own author.
+            composable(
+                route = AdminRoutes.DETAIL,
+                arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
+            ) { entry ->
+                val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
+                val item = announcements.firstOrNull { it.id == id }
+                val me = AuthRepository.currentProfile
+                val canManage = item != null && me != null &&
+                        (me.roleEnum == UserRole.ADMIN || item.authorId == me.uid)
+                AnnouncementDetailScreen(
+                    announcement = item,
+                    isSaved = false,
+                    onToggleSave = {},
+                    onBack = { navController.popBackStack() },
+                    onEdit = if (canManage) {
+                        { navController.navigate(AdminRoutes.edit(id)) }
+                    } else null,
+                    onDelete = if (canManage) {
+                        {
+                            AnnouncementStore.delete(id) {
+                                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                            }
+                            Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack()
+                        }
+                    } else null
+                )
             }
         }
     }

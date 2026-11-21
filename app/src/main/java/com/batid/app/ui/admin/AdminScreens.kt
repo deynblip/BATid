@@ -32,6 +32,11 @@ import androidx.compose.ui.unit.dp
 import com.batid.app.R
 import com.batid.app.data.model.Announcement
 import com.batid.app.data.model.Category
+import com.batid.app.data.model.Program
+import com.batid.app.data.model.UserRole
+import com.batid.app.data.model.roleEnum
+import com.batid.app.data.model.YearLevel
+import com.batid.app.data.model.yearLevelEnum
 import com.batid.app.data.model.audienceLabel
 import com.batid.app.data.model.categoryEnum
 import com.batid.app.data.model.isEmergency
@@ -67,14 +72,29 @@ fun DashboardScreen(
     announcements: List<Announcement>,
     onNewAnnouncement: () -> Unit,
     onEmergencyAlert: (() -> Unit)?,
-    onSeeAll: () -> Unit,
     onOpenAnnouncement: (String) -> Unit,
     roleLabel: String = "Admin",
     modifier: Modifier = Modifier
 ) {
-    // Same announcements students can see (published only), newest first.
-    val recent = remember(announcements) {
-        announcements.filter { it.isPublished }.sortedByDescending { it.createdAt }.take(3)
+    // "ALL" = no filter. Otherwise the Program / YearLevel enum name.
+    var programFilter by rememberSaveable { mutableStateOf("ALL") }
+    var yearFilter by rememberSaveable { mutableStateOf(YearLevel.ALL.name) }
+
+    val hasPublished = remember(announcements) { announcements.any { it.isPublished } }
+
+    // Published only (drafts stay in Manage), newest first, then the chip filters.
+    val feed = remember(announcements, programFilter, yearFilter) {
+        announcements
+            .filter { it.isPublished }
+            .filter { a ->
+                programFilter == "ALL" || a.programs.any { it.equals(programFilter, ignoreCase = true) }
+            }
+            .filter { a ->
+                yearFilter == YearLevel.ALL.name ||
+                        a.yearLevelEnum == YearLevel.ALL ||
+                        a.yearLevelEnum.name == yearFilter
+            }
+            .sortedByDescending { it.createdAt }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -126,26 +146,64 @@ fun DashboardScreen(
                     }
                 }
                 item {
+                    Text(
+                        "Announcements",
+                        style = boldLabel,
+                        color = InkNavy,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+                // Program chips: All, BSCS, BSIT
+                item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Recent announcements", style = boldLabel, color = InkNavy)
-                        TextButton(onClick = onSeeAll) {
-                            Text("See all", style = MaterialTheme.typography.labelMedium, color = NavyBlue)
+                        FilterPill(
+                            label = "All",
+                            selected = programFilter == "ALL",
+                            onClick = { programFilter = "ALL" }
+                        )
+                        Program.entries.forEach { program ->
+                            FilterPill(
+                                label = program.label,
+                                selected = programFilter == program.name,
+                                onClick = { programFilter = program.name }
+                            )
                         }
                     }
                 }
-                if (recent.isEmpty()) {
+                // Year level chips: All, 1st, 2nd, 3rd, 4th
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        YearLevel.entries.forEach { year ->
+                            FilterPill(
+                                label = year.chipLabel,
+                                selected = yearFilter == year.name,
+                                onClick = { yearFilter = year.name }
+                            )
+                        }
+                    }
+                }
+                if (feed.isEmpty()) {
                     item {
-                        EmptyState(
-                            title = "No announcements yet",
-                            message = "Announcements you publish will appear here."
-                        )
+                        if (hasPublished) {
+                            EmptyState(
+                                title = "No matching announcements",
+                                message = "Try a different program or year level."
+                            )
+                        } else {
+                            EmptyState(
+                                title = "No announcements yet",
+                                message = "Announcements you publish will appear here."
+                            )
+                        }
                     }
                 } else {
-                    items(recent, key = { it.id }) { a ->
+                    items(feed, key = { it.id }) { a ->
                         RecentRow(a, onClick = { onOpenAnnouncement(a.id) })
                     }
                 }
@@ -239,7 +297,7 @@ private fun RecentRow(a: Announcement, onClick: () -> Unit) {
             Text(a.title, style = boldLabel, color = InkNavy, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "To " + a.audienceLabel() + if (a.isEdited()) " · Edited" else "",
+                text = "To " + a.audienceLabel() + " · " + relativeTime(a.createdAt) + if (a.isEdited()) " · Edited" else "",
                 style = MaterialTheme.typography.labelSmall,
                 color = SlateGray
             )
@@ -255,9 +313,15 @@ private enum class ManageFilter(val label: String) { ALL("All"), PUBLISHED("Publ
 fun ManageAnnouncementsScreen(
     announcements: List<Announcement>,
     onEdit: (String) -> Unit,
+    onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // ADMIN can manage every post. FACULTY / COUNCIL only their own (authorId == uid).
+    val me = AuthRepository.currentProfile
+    val isAdmin = me?.roleEnum == UserRole.ADMIN
+    val canManage: (Announcement) -> Boolean = { a -> isAdmin || (me != null && a.authorId == me.uid) }
+
     var filter by rememberSaveable { mutableStateOf(ManageFilter.ALL) }
     var pendingDelete by remember { mutableStateOf<Announcement?>(null) }
 
@@ -313,7 +377,9 @@ fun ManageAnnouncementsScreen(
                     items(visible, key = { it.id }) { a ->
                         ManageCard(
                             a = a,
+                            canManage = canManage(a),
                             onEdit = { onEdit(a.id) },
+                            onOpen = { onOpen(a.id) },
                             onDelete = { pendingDelete = a }
                         )
                     }
@@ -350,10 +416,17 @@ fun ManageAnnouncementsScreen(
 }
 
 @Composable
-private fun ManageCard(a: Announcement, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun ManageCard(
+    a: Announcement,
+    canManage: Boolean,
+    onEdit: () -> Unit,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit
+) {
     val emergency = a.isEmergency
     Card(
-        onClick = onEdit,
+        // Own post (or ADMIN): edit form. Someone else's post: read-only detail.
+        onClick = if (canManage) onEdit else onOpen,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = if (emergency) EmergencyTint else Color.White),
@@ -383,10 +456,15 @@ private fun ManageCard(a: Announcement, onEdit: () -> Unit, onDelete: () -> Unit
             if (a.isEdited()) {
                 Text(editedLabel(a.updatedAt), style = MaterialTheme.typography.labelSmall, color = RoyalBlue)
             }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SmallAction("Edit", Icons.Outlined.Edit, NavyBlue, onEdit, Modifier.weight(1f))
-                SmallAction("Delete", Icons.Outlined.DeleteOutline, EmergencyRed, onDelete, Modifier.weight(1f))
+            if (canManage) {
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallAction("Edit", Icons.Outlined.Edit, NavyBlue, onEdit, Modifier.weight(1f))
+                    SmallAction("Delete", Icons.Outlined.DeleteOutline, EmergencyRed, onDelete, Modifier.weight(1f))
+                }
+            } else {
+                Spacer(Modifier.height(4.dp))
+                Text("By " + a.authorName, style = MaterialTheme.typography.labelSmall, color = SlateGray)
             }
         }
     }

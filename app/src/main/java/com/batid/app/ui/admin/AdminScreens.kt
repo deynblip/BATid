@@ -36,6 +36,7 @@ import com.batid.app.data.model.audienceLabel
 import com.batid.app.data.model.categoryEnum
 import com.batid.app.data.model.isEmergency
 import com.batid.app.data.model.isPublished
+import com.batid.app.data.remote.AuthRepository
 import com.batid.app.data.repository.AnnouncementStore
 import com.batid.app.ui.components.BatidHeader
 import com.batid.app.ui.components.BatidSheet
@@ -92,7 +93,7 @@ fun DashboardScreen(
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                             Text(
-                                AnnouncementStore.ADMIN_NAME,
+                                AuthRepository.currentProfile?.fullName.orEmpty(),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = SlateGray
                             )
@@ -352,6 +353,7 @@ fun ManageAnnouncementsScreen(
 private fun ManageCard(a: Announcement, onEdit: () -> Unit, onDelete: () -> Unit) {
     val emergency = a.isEmergency
     Card(
+        onClick = onEdit,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = if (emergency) EmergencyTint else Color.White),

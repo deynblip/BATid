@@ -14,16 +14,16 @@ import com.batid.app.data.model.PublishStatus
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.YearLevel
 import com.batid.app.data.model.isPublished
-import java.util.UUID
+import com.batid.app.data.model.UserProfile
+import com.batid.app.data.model.roleEnum
+import com.batid.app.data.remote.AuthRepository
 
 /**
- * TEMPORARY shared in-memory "database". Both the admin and the student side read from here,
- * so whatever the admin publishes / edits / deletes shows up for students immediately.
- * Replace the inside of these functions with Firestore calls when Firebase is connected.
- * Note: it resets to the sample data when the app process is killed.
+ * Announcements from Firestore (collection "announcements").
+ * `items` is kept up to date by live listeners (published + the drafts this user may see).
+ * publish / update / delete write to Firestore; the listeners then refresh `items` everywhere.
  */
 object AnnouncementStore {
-    const val ADMIN_NAME = "CICS Dean's Office"
 
     var items: List<Announcement> by mutableStateOf(emptyList())
         private set
@@ -108,31 +108,45 @@ object AnnouncementStore {
         items = emptyList()
     }
 
+    private fun authorNameFor(me: UserProfile): String =
+        if (me.roleEnum == UserRole.COUNCIL) "CICS Student Council"
+        else me.fullName.ifBlank { me.email }
     fun publish(
         title: String,
         body: String,
         category: Category,
         programs: Collection<Program>,
         year: YearLevel,
-        status: PublishStatus
+        status: PublishStatus,
+        onError: (String) -> Unit = {}
     ) {
+        val me = AuthRepository.currentProfile
+        if (me == null) {
+            onError("Please log in again.")
+            return
+        }
         val now = System.currentTimeMillis()
+        val doc = FirebaseFirestore.getInstance().collection("announcements").document()
         val announcement = Announcement(
-            id = UUID.randomUUID().toString(),
+            id = doc.id,
             title = title,
             body = body,
             category = category.name,
             programs = Program.entries.filter { it in programs }.map { it.name },
             yearLevel = year.name,
             status = status.name,
-            authorName = ADMIN_NAME,
-            authorRole = UserRole.ADMIN.name,
+            authorId = me.uid,
+            authorName = authorNameFor(me),
+            authorRole = me.role,
             createdAt = now,
             updatedAt = now
         )
-        items = listOf(announcement) + items
+        doc.set(announcement)
+            .addOnFailureListener { e ->
+                Log.e("AnnouncementStore", "Publish failed", e)
+                onError("Could not save the announcement. Please try again.")
+            }
     }
-
     /** Edits keep createdAt and set updatedAt = now, which is what makes "Edited 3 min ago" appear. */
     fun update(
         id: String,
@@ -141,28 +155,40 @@ object AnnouncementStore {
         category: Category,
         programs: Collection<Program>,
         year: YearLevel,
-        status: PublishStatus
+        status: PublishStatus,
+        onError: (String) -> Unit = {}
     ) {
-        val now = System.currentTimeMillis()
-        items = items.map { old ->
-            if (old.id != id) old else {
-                // A draft being published for the first time counts as a fresh post, not an edit.
-                val publishingNow = !old.isPublished && status == PublishStatus.PUBLISHED
-                old.copy(
-                    title = title,
-                    body = body,
-                    category = category.name,
-                    programs = Program.entries.filter { it in programs }.map { it.name },
-                    yearLevel = year.name,
-                    status = status.name,
-                    createdAt = if (publishingNow) now else old.createdAt,
-                    updatedAt = now
-                )
-            }
+        val old = find(id)
+        if (old == null) {
+            onError("Announcement not found.")
+            return
         }
+        val now = System.currentTimeMillis()
+        // A draft being published for the first time counts as a fresh post, not an edit.
+        val publishingNow = !old.isPublished && status == PublishStatus.PUBLISHED
+        val changes = mapOf<String, Any>(
+            "title" to title,
+            "body" to body,
+            "category" to category.name,
+            "programs" to Program.entries.filter { it in programs }.map { it.name },
+            "yearLevel" to year.name,
+            "status" to status.name,
+            "createdAt" to (if (publishingNow) now else old.createdAt),
+            "updatedAt" to now
+        )
+        FirebaseFirestore.getInstance().collection("announcements").document(id)
+            .update(changes)
+            .addOnFailureListener { e ->
+                Log.e("AnnouncementStore", "Update failed", e)
+                onError("Could not save the changes. Please try again.")
+            }
     }
-
-    fun delete(id: String) {
-        items = items.filterNot { it.id == id }
+    fun delete(id: String, onError: (String) -> Unit = {}) {
+        FirebaseFirestore.getInstance().collection("announcements").document(id)
+            .delete()
+            .addOnFailureListener { e ->
+                Log.e("AnnouncementStore", "Delete failed", e)
+                onError("Could not delete the announcement. Please try again.")
+            }
     }
 }

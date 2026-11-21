@@ -124,7 +124,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
                     announcements = announcements,
                     onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
                     onDelete = { id ->
-                        AnnouncementStore.delete(id)
+                        AnnouncementStore.delete(id) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                         Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
                     }
                 )

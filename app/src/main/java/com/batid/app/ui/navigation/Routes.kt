@@ -37,3 +37,11 @@ object AdminRoutes {
     const val DETAIL = "detail/{$EDIT_ARG}"
     fun detail(id: String) = "detail/$id"
 }
+
+/** Help & info screens opened from the hamburger menu (used by both the student and admin sides). */
+object HelpRoutes {
+    const val HELP = "help"
+    const val ABOUT = "about"
+    const val CONTACT = "contact"
+    const val PRIVACY = "privacy"
+}

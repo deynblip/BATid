@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,6 +74,7 @@ fun HomeScreen(
     onToggleSave: (String) -> Unit,
     onBellClick: () -> Unit,
     unreadCount: Int = 0,
+    onMenuClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selected by rememberSaveable { mutableStateOf<Category?>(null) }
@@ -81,7 +83,7 @@ fun HomeScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        HomeHeader(onBellClick = onBellClick, unreadCount = unreadCount)
+        HomeHeader(onMenuClick = onMenuClick, onBellClick = onBellClick, unreadCount = unreadCount)
         BatidSheet(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -126,7 +128,7 @@ fun HomeScreen(
     }
 }
 @Composable
-private fun HomeHeader(onBellClick: () -> Unit, unreadCount: Int) {
+private fun HomeHeader(onMenuClick: () -> Unit, onBellClick: () -> Unit, unreadCount: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -139,14 +141,14 @@ private fun HomeHeader(onBellClick: () -> Unit, unreadCount: Int) {
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.drawable.cics_logo),
-                contentDescription = "CICS logo",
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-            )
-            Spacer(Modifier.width(12.dp))
+            IconButton(onClick = onMenuClick, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Menu",
+                    tint = Color.White
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Image(
                     painter = painterResource(R.drawable.batid_logo_light),

@@ -53,6 +53,13 @@ import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.components.NoConnectionBanner
 import com.batid.app.ui.components.StatusBarAppearance
 import com.batid.app.ui.navigation.StudentRoutes
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import com.batid.app.ui.help.BatidDrawerSheet
+import com.batid.app.ui.help.helpDestinations
+import kotlinx.coroutines.launch
 
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
@@ -104,104 +111,120 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
     val notifications = remember(studentFeed) { buildNotifications(studentFeed) }
     val unreadCount = notifications.count { it.id !in readIds }
 
-    Scaffold(
-        modifier = Modifier.imePadding(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(),
-        bottomBar = {
-            if (!imeVisible && studentTabs.any { it.route == currentRoute }) {
-                Column {
-                    NoConnectionBanner(visible = !isOnline)
-                    BatidBottomBar(
-                        items = studentTabs,
-                        currentRoute = currentRoute,
-                        onSelect = { route ->
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen || currentRoute == StudentRoutes.HOME,
+        drawerContent = {
+            BatidDrawerSheet(onSelect = { item ->
+                scope.launch { drawerState.close() }
+                navController.navigate(item.route) { launchSingleTop = true }
+            })
+        }
+    ) {
+        Scaffold(
+            modifier = Modifier.imePadding(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets(),
+            bottomBar = {
+                if (!imeVisible && studentTabs.any { it.route == currentRoute }) {
+                    Column {
+                        NoConnectionBanner(visible = !isOnline)
+                        BatidBottomBar(
+                            items = studentTabs,
+                            currentRoute = currentRoute,
+                            onSelect = { route ->
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = StudentRoutes.HOME,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(StudentRoutes.HOME) {
-                HomeScreen(
-                    announcements = studentFeed,
-                    savedIds = savedIds,
-                    onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
-                    onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id },
-                    onBellClick = { navController.navigate(StudentRoutes.NOTIFICATIONS) { launchSingleTop = true } },
-                    unreadCount = unreadCount
-                )
-            }
-            composable(StudentRoutes.SEARCH) {
-                SearchScreen(
-                    announcements = studentFeed,
-                    savedIds = savedIds,
-                    onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
-                    onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
-                )
-            }
-            composable(StudentRoutes.NOTIFICATIONS) {
-                NotificationsScreen(
-                    notifications = notifications,
-                    readIds = readIds,
-                    onOpen = { n ->
-                        readIds = readIds + n.id
-                        n.announcementId?.let { navController.navigate(StudentRoutes.announcement(it)) }
-                    },
-                    onMarkAllRead = { readIds = notifications.map { it.id }.toSet() },
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(StudentRoutes.SAVED) {
-                SavedScreen(
-                    announcements = studentFeed,
-                    savedIds = savedIds,
-                    onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
-                    onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
-                )
-            }
-            composable(StudentRoutes.PROFILE) {
-                ProfileScreen(
-                    profile = profile,
-                    onChangeProgram = { p ->
-                        profile = profile.copy(program = p.name)
-                        AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
-                    },
-                    onChangeYear = { y ->
-                        profile = profile.copy(yearLevel = y.name)
-                        AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
-                    },
-                    onSignOut = {
-                        PushTopics.clear()
-                        NotificationPrefs.reset(context)
-                        AuthRepository.signOut()
-                        onSignOut()
-                    },
-                    onOpenCouncilDashboard =
-                        if (profile.roleEnum == UserRole.COUNCIL) onOpenCouncilDashboard else null
-                )
-            }
-            composable(
-                route = StudentRoutes.ANNOUNCEMENT,
-                arguments = listOf(navArgument(StudentRoutes.ANNOUNCEMENT_ARG) { type = NavType.StringType })
-            ) { entry ->
-                val id = entry.arguments?.getString(StudentRoutes.ANNOUNCEMENT_ARG).orEmpty()
-                AnnouncementDetailScreen(
-                    announcement = studentFeed.firstOrNull { it.id == id },
-                    isSaved = id in savedIds,
-                    onToggleSave = { savedIds = if (id in savedIds) savedIds - id else savedIds + id },
-                    onBack = { navController.popBackStack() }
-                )
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = StudentRoutes.HOME,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(StudentRoutes.HOME) {
+                    HomeScreen(
+                        announcements = studentFeed,
+                        savedIds = savedIds,
+                        onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
+                        onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id },
+                        onBellClick = { navController.navigate(StudentRoutes.NOTIFICATIONS) { launchSingleTop = true } },
+                        unreadCount = unreadCount,
+                        onMenuClick = { scope.launch { drawerState.open() } }
+                    )
+                }
+                helpDestinations(onBack = { navController.popBackStack() })
+                composable(StudentRoutes.SEARCH) {
+                    SearchScreen(
+                        announcements = studentFeed,
+                        savedIds = savedIds,
+                        onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
+                        onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
+                    )
+                }
+                composable(StudentRoutes.NOTIFICATIONS) {
+                    NotificationsScreen(
+                        notifications = notifications,
+                        readIds = readIds,
+                        onOpen = { n ->
+                            readIds = readIds + n.id
+                            n.announcementId?.let { navController.navigate(StudentRoutes.announcement(it)) }
+                        },
+                        onMarkAllRead = { readIds = notifications.map { it.id }.toSet() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(StudentRoutes.SAVED) {
+                    SavedScreen(
+                        announcements = studentFeed,
+                        savedIds = savedIds,
+                        onOpenAnnouncement = { id -> navController.navigate(StudentRoutes.announcement(id)) },
+                        onToggleSave = { id -> savedIds = if (id in savedIds) savedIds - id else savedIds + id }
+                    )
+                }
+                composable(StudentRoutes.PROFILE) {
+                    ProfileScreen(
+                        profile = profile,
+                        onChangeProgram = { p ->
+                            profile = profile.copy(program = p.name)
+                            AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
+                        },
+                        onChangeYear = { y ->
+                            profile = profile.copy(yearLevel = y.name)
+                            AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
+                        },
+                        onSignOut = {
+                            PushTopics.clear()
+                            NotificationPrefs.reset(context)
+                            AuthRepository.signOut()
+                            onSignOut()
+                        },
+                        onOpenCouncilDashboard =
+                            if (profile.roleEnum == UserRole.COUNCIL) onOpenCouncilDashboard else null
+                    )
+                }
+                composable(
+                    route = StudentRoutes.ANNOUNCEMENT,
+                    arguments = listOf(navArgument(StudentRoutes.ANNOUNCEMENT_ARG) { type = NavType.StringType })
+                ) { entry ->
+                    val id = entry.arguments?.getString(StudentRoutes.ANNOUNCEMENT_ARG).orEmpty()
+                    AnnouncementDetailScreen(
+                        announcement = studentFeed.firstOrNull { it.id == id },
+                        isSaved = id in savedIds,
+                        onToggleSave = { savedIds = if (id in savedIds) savedIds - id else savedIds + id },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }

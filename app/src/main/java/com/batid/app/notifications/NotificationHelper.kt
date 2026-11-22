@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -32,19 +33,15 @@ object NotificationHelper {
         )
     }
 
-    /** False when the user denied the permission or turned notifications off in system settings. */
     fun canPost(context: Context): Boolean =
         NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-    /**
-     * Shows the notification only if: a student is signed in, the category switch is on
-     * (Emergency is always on), and the system allows notifications.
-     */
     @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun show(context: Context, title: String, body: String, category: Category, announcementId: String?) {
-        if (!NotificationPrefs.isActive(context)) return
-        if (!NotificationPrefs.isEnabled(context, category)) return
-        if (!canPost(context)) return
+        if (!NotificationPrefs.isActive(context)) { Log.d("BATID_PUSH", "skip: no student signed in"); return }
+        if (!NotificationPrefs.isEnabled(context, category)) { Log.d("BATID_PUSH", "skip: $category switch is off"); return }
+        if (!canPost(context)) { Log.d("BATID_PUSH", "skip: system notifications are off"); return }
+        Log.d("BATID_PUSH", "showing: $title")
 
         createChannels(context)
         val emergency = category == Category.EMERGENCY

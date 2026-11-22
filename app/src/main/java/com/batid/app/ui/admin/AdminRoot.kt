@@ -25,11 +25,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.outlined.Person
+import androidx.navigation.navArgument
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
-import androidx.navigation.navArgument
+import com.batid.app.notifications.PushTopics
 import com.batid.app.data.repository.AnnouncementStore
 import com.batid.app.ui.components.BatidBottomBar
 import com.batid.app.ui.components.BottomBarItem
@@ -74,6 +75,7 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
         if (me != null) {
             AnnouncementStore.startDrafts(me.uid, me.roleEnum == UserRole.ADMIN)
         }
+        if (!isCouncil) PushTopics.clear()
     }
 
     fun goToTab(route: String) {

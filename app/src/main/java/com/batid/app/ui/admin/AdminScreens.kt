@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,6 +74,7 @@ fun DashboardScreen(
     onNewAnnouncement: () -> Unit,
     onEmergencyAlert: (() -> Unit)?,
     onOpenAnnouncement: (String) -> Unit,
+    onMenuClick: () -> Unit = {},
     roleLabel: String = "Admin",
     modifier: Modifier = Modifier
 ) {
@@ -98,7 +100,7 @@ fun DashboardScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        AdminHeader(label = roleLabel)
+        AdminHeader(label = roleLabel, onMenuClick = onMenuClick)
         BatidSheet(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -213,7 +215,7 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun AdminHeader(label: String) {
+private fun AdminHeader(label: String, onMenuClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -226,12 +228,14 @@ private fun AdminHeader(label: String) {
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.drawable.cics_logo),
-                contentDescription = "CICS logo",
-                modifier = Modifier.size(48.dp).clip(CircleShape)
-            )
-            Spacer(Modifier.width(12.dp))
+            IconButton(onClick = onMenuClick, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Menu,
+                    contentDescription = "Menu",
+                    tint = Color.White
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Image(
                     painter = painterResource(R.drawable.batid_logo_light),

@@ -37,6 +37,13 @@ import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.components.NoConnectionBanner
 import com.batid.app.ui.components.StatusBarAppearance
 import com.batid.app.ui.navigation.AdminRoutes
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import com.batid.app.ui.help.BatidDrawerSheet
+import com.batid.app.ui.help.helpDestinations
+import kotlinx.coroutines.launch
 import com.batid.app.ui.student.AnnouncementDetailScreen
 
 private val adminTabs = listOf(
@@ -77,125 +84,141 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
         }
     }
 
-    Scaffold(
-        modifier = Modifier.imePadding(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(),
-        bottomBar = {
-            // Hide the bar on form screens (compose / emergency / edit) and while typing.
-            if (!imeVisible && adminTabs.any { it.route == currentRoute }) {
-                Column {
-                    NoConnectionBanner(visible = !isOnline)
-                    BatidBottomBar(
-                        items = adminTabs,
-                        currentRoute = currentRoute,
-                        onSelect = { route -> goToTab(route) }
-                    )
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen || currentRoute == AdminRoutes.DASHBOARD,
+        drawerContent = {
+            BatidDrawerSheet(onSelect = { item ->
+                scope.launch { drawerState.close() }
+                navController.navigate(item.route) { launchSingleTop = true }
+            })
+        }
+    ) {
+        Scaffold(
+            modifier = Modifier.imePadding(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets(),
+            bottomBar = {
+                // Hide the bar on form screens (compose / emergency / edit) and while typing.
+                if (!imeVisible && adminTabs.any { it.route == currentRoute }) {
+                    Column {
+                        NoConnectionBanner(visible = !isOnline)
+                        BatidBottomBar(
+                            items = adminTabs,
+                            currentRoute = currentRoute,
+                            onSelect = { route -> goToTab(route) }
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = AdminRoutes.DASHBOARD,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(AdminRoutes.DASHBOARD) {
-                DashboardScreen(
-                    announcements = announcements,
-                    onNewAnnouncement = { navController.navigate(AdminRoutes.COMPOSE) },
-                    onEmergencyAlert = if (isCouncil) null else {
-                        { navController.navigate(AdminRoutes.EMERGENCY) }
-                    },
-                    onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.detail(id)) },
-                    roleLabel = if (isCouncil) "Council" else "Admin"
-                )
-            }
-            // "New" bottom tab: same form, no back arrow. After publishing, go to the dashboard.
-            composable(AdminRoutes.NEW) {
-                AnnouncementFormScreen(
-                    existing = null,
-                    onBack = null,
-                    onDone = { goToTab(AdminRoutes.DASHBOARD) }
-                )
-            }
-            composable(AdminRoutes.MANAGE) {
-                ManageAnnouncementsScreen(
-                    announcements = announcements,
-                    onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
-                    onOpen = { id -> navController.navigate(AdminRoutes.detail(id)) },
-                    onDelete = { id ->
-                        AnnouncementStore.delete(id) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-                        Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-            composable(AdminRoutes.PROFILE) {
-                AdminProfileScreen(
-                    profile = AuthRepository.currentProfile ?: UserProfile(),
-                    onSignOut = onSignOut,
-                    onStudentView = if (isCouncil) onStudentView else null
-                )
-            }
-            // Opened from the dashboard's "New announcement" button.
-            composable(AdminRoutes.COMPOSE) {
-                AnnouncementFormScreen(
-                    existing = null,
-                    onBack = { navController.popBackStack() },
-                    onDone = { navController.popBackStack() }
-                )
-            }
-            composable(AdminRoutes.EMERGENCY) {
-                EmergencyAlertScreen(
-                    onBack = { navController.popBackStack() },
-                    onDone = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = AdminRoutes.EDIT,
-                arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
-            ) { entry ->
-                val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
-                val existing = announcements.firstOrNull { it.id == id }
-                if (existing == null) {
-                    // Deleted while open: just leave.
-                    LaunchedEffect(Unit) { navController.popBackStack() }
-                } else {
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = AdminRoutes.DASHBOARD,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(AdminRoutes.DASHBOARD) {
+                    DashboardScreen(
+                        announcements = announcements,
+                        onNewAnnouncement = { navController.navigate(AdminRoutes.COMPOSE) },
+                        onEmergencyAlert = if (isCouncil) null else {
+                            { navController.navigate(AdminRoutes.EMERGENCY) }
+                        },
+                        onOpenAnnouncement = { id -> navController.navigate(AdminRoutes.detail(id)) },
+                        onMenuClick = { scope.launch { drawerState.open() } },
+                        roleLabel = if (isCouncil) "Council" else "Admin"
+                    )
+                }
+                // "New" bottom tab: same form, no back arrow. After publishing, go to the dashboard.
+                composable(AdminRoutes.NEW) {
                     AnnouncementFormScreen(
-                        existing = existing,
+                        existing = null,
+                        onBack = null,
+                        onDone = { goToTab(AdminRoutes.DASHBOARD) }
+                    )
+                }
+                composable(AdminRoutes.MANAGE) {
+                    ManageAnnouncementsScreen(
+                        announcements = announcements,
+                        onEdit = { id -> navController.navigate(AdminRoutes.edit(id)) },
+                        onOpen = { id -> navController.navigate(AdminRoutes.detail(id)) },
+                        onDelete = { id ->
+                            AnnouncementStore.delete(id) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                            Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+                helpDestinations(onBack = { navController.popBackStack() })
+                composable(AdminRoutes.PROFILE) {
+                    AdminProfileScreen(
+                        profile = AuthRepository.currentProfile ?: UserProfile(),
+                        onSignOut = onSignOut,
+                        onStudentView = if (isCouncil) onStudentView else null
+                    )
+                }
+                // Opened from the dashboard's "New announcement" button.
+                composable(AdminRoutes.COMPOSE) {
+                    AnnouncementFormScreen(
+                        existing = null,
                         onBack = { navController.popBackStack() },
                         onDone = { navController.popBackStack() }
                     )
                 }
-            }
-            // Read-only detail. Edit/Delete only for ADMIN (all posts) or the post's own author.
-            composable(
-                route = AdminRoutes.DETAIL,
-                arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
-            ) { entry ->
-                val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
-                val item = announcements.firstOrNull { it.id == id }
-                val me = AuthRepository.currentProfile
-                val canManage = item != null && me != null &&
-                        (me.roleEnum == UserRole.ADMIN || item.authorId == me.uid)
-                AnnouncementDetailScreen(
-                    announcement = item,
-                    isSaved = false,
-                    onToggleSave = {},
-                    onBack = { navController.popBackStack() },
-                    onEdit = if (canManage) {
-                        { navController.navigate(AdminRoutes.edit(id)) }
-                    } else null,
-                    onDelete = if (canManage) {
-                        {
-                            AnnouncementStore.delete(id) {
-                                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                composable(AdminRoutes.EMERGENCY) {
+                    EmergencyAlertScreen(
+                        onBack = { navController.popBackStack() },
+                        onDone = { navController.popBackStack() }
+                    )
+                }
+                composable(
+                    route = AdminRoutes.EDIT,
+                    arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
+                ) { entry ->
+                    val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
+                    val existing = announcements.firstOrNull { it.id == id }
+                    if (existing == null) {
+                        // Deleted while open: just leave.
+                        LaunchedEffect(Unit) { navController.popBackStack() }
+                    } else {
+                        AnnouncementFormScreen(
+                            existing = existing,
+                            onBack = { navController.popBackStack() },
+                            onDone = { navController.popBackStack() }
+                        )
+                    }
+                }
+                // Read-only detail. Edit/Delete only for ADMIN (all posts) or the post's own author.
+                composable(
+                    route = AdminRoutes.DETAIL,
+                    arguments = listOf(navArgument(AdminRoutes.EDIT_ARG) { type = NavType.StringType })
+                ) { entry ->
+                    val id = entry.arguments?.getString(AdminRoutes.EDIT_ARG).orEmpty()
+                    val item = announcements.firstOrNull { it.id == id }
+                    val me = AuthRepository.currentProfile
+                    val canManage = item != null && me != null &&
+                            (me.roleEnum == UserRole.ADMIN || item.authorId == me.uid)
+                    AnnouncementDetailScreen(
+                        announcement = item,
+                        isSaved = false,
+                        onToggleSave = {},
+                        onBack = { navController.popBackStack() },
+                        onEdit = if (canManage) {
+                            { navController.navigate(AdminRoutes.edit(id)) }
+                        } else null,
+                        onDelete = if (canManage) {
+                            {
+                                AnnouncementStore.delete(id) {
+                                    Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                                }
+                                Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
+                                navController.popBackStack()
                             }
-                            Toast.makeText(context, "Announcement deleted", Toast.LENGTH_SHORT).show()
-                            navController.popBackStack()
-                        }
-                    } else null
-                )
+                        } else null
+                    )
+                }
             }
         }
     }

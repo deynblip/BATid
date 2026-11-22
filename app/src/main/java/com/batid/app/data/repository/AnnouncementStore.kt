@@ -17,12 +17,8 @@ import com.batid.app.data.model.isPublished
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
+import com.batid.app.notifications.PushSender
 
-/**
- * Announcements from Firestore (collection "announcements").
- * `items` is kept up to date by live listeners (published + the drafts this user may see).
- * publish / update / delete write to Firestore; the listeners then refresh `items` everywhere.
- */
 object AnnouncementStore {
 
     var items: List<Announcement> by mutableStateOf(emptyList())
@@ -144,12 +140,20 @@ object AnnouncementStore {
             linkUrl = linkUrl
         )
         doc.set(announcement)
+            .addOnSuccessListener {
+                // Push only for published posts (drafts stay quiet).
+                if (status == PublishStatus.PUBLISHED) {
+                    PushSender.send(doc.id) { ok, message ->
+                        if (!ok) onError("Posted, but the notification was not sent: $message")
+                    }
+                }
+            }
             .addOnFailureListener { e ->
                 Log.e("AnnouncementStore", "Publish failed", e)
                 onError("Could not save the announcement. Please try again.")
             }
     }
-    /** Edits keep createdAt and set updatedAt = now, which is what makes "Edited 3 min ago" appear. */
+
     fun update(
         id: String,
         title: String,
@@ -182,6 +186,14 @@ object AnnouncementStore {
         )
         FirebaseFirestore.getInstance().collection("announcements").document(id)
             .update(changes)
+            .addOnSuccessListener {
+                // A draft published for the first time gets a push. Normal edits don't.
+                if (publishingNow) {
+                    PushSender.send(id) { ok, message ->
+                        if (!ok) onError("Posted, but the notification was not sent: $message")
+                    }
+                }
+            }
             .addOnFailureListener { e ->
                 Log.e("AnnouncementStore", "Update failed", e)
                 onError("Could not save the changes. Please try again.")

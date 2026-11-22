@@ -30,6 +30,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.AnimatedVisibility
+import com.batid.app.ui.student.FilterSection
+import com.batid.app.ui.student.FilterToggleRow
 import com.batid.app.R
 import com.batid.app.data.model.Announcement
 import com.batid.app.data.model.Category
@@ -65,6 +68,29 @@ import com.batid.app.util.relativeTime
 private val boldLabel @Composable get() = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
 
 private fun Announcement.isEdited() = isPublished && updatedAt > createdAt
+private fun Announcement.matchesAudience(programFilter: String, yearFilter: String): Boolean =
+    (programFilter == "ALL" || programs.any { it.equals(programFilter, ignoreCase = true) }) &&
+            (yearFilter == YearLevel.ALL.name || yearLevelEnum == YearLevel.ALL || yearLevelEnum.name == yearFilter)
+
+@Composable
+private fun AudienceFilterSections(
+    programFilter: String,
+    onProgram: (String) -> Unit,
+    yearFilter: String,
+    onYear: (String) -> Unit
+) {
+    FilterSection("PROGRAM") {
+        FilterPill("All", programFilter == "ALL", { onProgram("ALL") })
+        Program.entries.forEach { p ->
+            FilterPill(p.label, programFilter == p.name, { onProgram(p.name) })
+        }
+    }
+    FilterSection("YEAR LEVEL") {
+        YearLevel.entries.forEach { y ->
+            FilterPill(y.chipLabel, yearFilter == y.name, { onYear(y.name) })
+        }
+    }
+}
 
 // ───────────────────────────── Dashboard ─────────────────────────────
 
@@ -78,24 +104,15 @@ fun DashboardScreen(
     roleLabel: String = "Admin",
     modifier: Modifier = Modifier
 ) {
-    // "ALL" = no filter. Otherwise the Program / YearLevel enum name.
+
     var programFilter by rememberSaveable { mutableStateOf("ALL") }
     var yearFilter by rememberSaveable { mutableStateOf(YearLevel.ALL.name) }
-
+    var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+    val activeFilters = listOf(programFilter != "ALL", yearFilter != YearLevel.ALL.name).count { it }
     val hasPublished = remember(announcements) { announcements.any { it.isPublished } }
-
-    // Published only (drafts stay in Manage), newest first, then the chip filters.
     val feed = remember(announcements, programFilter, yearFilter) {
         announcements
-            .filter { it.isPublished }
-            .filter { a ->
-                programFilter == "ALL" || a.programs.any { it.equals(programFilter, ignoreCase = true) }
-            }
-            .filter { a ->
-                yearFilter == YearLevel.ALL.name ||
-                        a.yearLevelEnum == YearLevel.ALL ||
-                        a.yearLevelEnum.name == yearFilter
-            }
+            .filter { it.isPublished && it.matchesAudience(programFilter, yearFilter) }
             .sortedByDescending { it.createdAt }
     }
 
@@ -155,37 +172,22 @@ fun DashboardScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
-                // Program chips: All, BSCS, BSIT
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterPill(
-                            label = "All",
-                            selected = programFilter == "ALL",
-                            onClick = { programFilter = "ALL" }
-                        )
-                        Program.entries.forEach { program ->
-                            FilterPill(
-                                label = program.label,
-                                selected = programFilter == program.name,
-                                onClick = { programFilter = program.name }
-                            )
-                        }
-                    }
+                    FilterToggleRow(
+                        expanded = filtersExpanded,
+                        activeCount = activeFilters,
+                        onClick = { filtersExpanded = !filtersExpanded },
+                        border = BorderStroke(1.dp, BorderGray)
+                    )
                 }
-                // Year level chips: All, 1st, 2nd, 3rd, 4th
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        YearLevel.entries.forEach { year ->
-                            FilterPill(
-                                label = year.chipLabel,
-                                selected = yearFilter == year.name,
-                                onClick = { yearFilter = year.name }
+                    AnimatedVisibility(visible = filtersExpanded) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            AudienceFilterSections(
+                                programFilter = programFilter,
+                                onProgram = { programFilter = it },
+                                yearFilter = yearFilter,
+                                onYear = { yearFilter = it }
                             )
                         }
                     }
@@ -313,6 +315,10 @@ private fun RecentRow(a: Announcement, onClick: () -> Unit) {
 
 private enum class ManageFilter(val label: String) { ALL("All"), PUBLISHED("Published"), DRAFTS("Drafts") }
 
+private enum class AuthorFilter(val label: String) {
+    EVERYONE("Everyone"), ADMIN("Admin"), FACULTY("Faculty"), COUNCIL("Council")
+}
+
 @Composable
 fun ManageAnnouncementsScreen(
     announcements: List<Announcement>,
@@ -321,7 +327,7 @@ fun ManageAnnouncementsScreen(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // ADMIN can manage every post. FACULTY / COUNCIL only their own (authorId == uid).
+    // ADMIN sees and manages every post. FACULTY / COUNCIL see ONLY their own posts here.
     val me = AuthRepository.currentProfile
     val isAdmin = me?.roleEnum == UserRole.ADMIN
     val canManage: (Announcement) -> Boolean = { a -> isAdmin || (me != null && a.authorId == me.uid) }
@@ -329,10 +335,38 @@ fun ManageAnnouncementsScreen(
     var filter by rememberSaveable { mutableStateOf(ManageFilter.ALL) }
     var pendingDelete by remember { mutableStateOf<Announcement?>(null) }
 
-    val publishedCount = announcements.count { it.isPublished }
-    val draftCount = announcements.size - publishedCount
-    val visible = remember(announcements, filter) {
-        announcements
+    // Admin-only extra filters (hidden behind the "Filters" row).
+    var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+    var authorFilter by rememberSaveable { mutableStateOf(AuthorFilter.EVERYONE) }
+    var programFilter by rememberSaveable { mutableStateOf("ALL") }
+    var yearFilter by rememberSaveable { mutableStateOf(YearLevel.ALL.name) }
+    val activeFilters = listOf(
+        authorFilter != AuthorFilter.EVERYONE,
+        programFilter != "ALL",
+        yearFilter != YearLevel.ALL.name
+    ).count { it }
+
+    // Whose posts: own only (Faculty/Council), or all + chips (Admin).
+    val scoped = remember(announcements, isAdmin, me?.uid, authorFilter, programFilter, yearFilter) {
+        if (!isAdmin) {
+            announcements.filter { me != null && it.authorId == me.uid }
+        } else {
+            announcements.filter { a ->
+                val authorOk = when (authorFilter) {
+                    AuthorFilter.EVERYONE -> true
+                    AuthorFilter.ADMIN -> a.authorId == me?.uid
+                    AuthorFilter.FACULTY -> a.authorRole.equals(UserRole.FACULTY.name, ignoreCase = true)
+                    AuthorFilter.COUNCIL -> a.authorRole.equals(UserRole.COUNCIL.name, ignoreCase = true)
+                }
+                authorOk && a.matchesAudience(programFilter, yearFilter)
+            }
+        }
+    }
+
+    val publishedCount = scoped.count { it.isPublished }
+    val draftCount = scoped.size - publishedCount
+    val visible = remember(scoped, filter) {
+        scoped
             .filter {
                 when (filter) {
                     ManageFilter.ALL -> true
@@ -344,7 +378,10 @@ fun ManageAnnouncementsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        BatidHeader(title = "Manage", subtitle = "Edit or delete your announcements")
+        BatidHeader(
+            title = "Manage",
+            subtitle = if (isAdmin) "Edit or delete any announcement" else "Edit or delete your announcements"
+        )
         BatidSheet(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -358,7 +395,7 @@ fun ManageAnnouncementsScreen(
                     ) {
                         ManageFilter.entries.forEach { f ->
                             val count = when (f) {
-                                ManageFilter.ALL -> announcements.size
+                                ManageFilter.ALL -> scoped.size
                                 ManageFilter.PUBLISHED -> publishedCount
                                 ManageFilter.DRAFTS -> draftCount
                             }
@@ -370,18 +407,54 @@ fun ManageAnnouncementsScreen(
                         }
                     }
                 }
+                // Admin only: Posted by / Program / Year filters
+                if (isAdmin) {
+                    item {
+                        FilterToggleRow(
+                            expanded = filtersExpanded,
+                            activeCount = activeFilters,
+                            onClick = { filtersExpanded = !filtersExpanded },
+                            border = BorderStroke(1.dp, BorderGray)
+                        )
+                    }
+                    item {
+                        AnimatedVisibility(visible = filtersExpanded) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                FilterSection("POSTED BY") {
+                                    AuthorFilter.entries.forEach { f ->
+                                        FilterPill(f.label, authorFilter == f, { authorFilter = f })
+                                    }
+                                }
+                                AudienceFilterSections(
+                                    programFilter = programFilter,
+                                    onProgram = { programFilter = it },
+                                    yearFilter = yearFilter,
+                                    onYear = { yearFilter = it }
+                                )
+                            }
+                        }
+                    }
+                }
                 if (visible.isEmpty()) {
                     item {
-                        EmptyState(
-                            title = "Nothing here yet",
-                            message = "Announcements you create will show up here."
-                        )
+                        if (isAdmin && activeFilters > 0) {
+                            EmptyState(
+                                title = "No matching announcements",
+                                message = "Try different filters."
+                            )
+                        } else {
+                            EmptyState(
+                                title = "Nothing here yet",
+                                message = "Announcements you create will show up here."
+                            )
+                        }
                     }
                 } else {
                     items(visible, key = { it.id }) { a ->
                         ManageCard(
                             a = a,
                             canManage = canManage(a),
+                            showAuthor = isAdmin,
                             onEdit = { onEdit(a.id) },
                             onOpen = { onOpen(a.id) },
                             onDelete = { pendingDelete = a }
@@ -423,6 +496,7 @@ fun ManageAnnouncementsScreen(
 private fun ManageCard(
     a: Announcement,
     canManage: Boolean,
+    showAuthor: Boolean = false,
     onEdit: () -> Unit,
     onOpen: () -> Unit,
     onDelete: () -> Unit
@@ -460,13 +534,16 @@ private fun ManageCard(
             if (a.isEdited()) {
                 Text(editedLabel(a.updatedAt), style = MaterialTheme.typography.labelSmall, color = RoyalBlue)
             }
+            if (showAuthor) {
+                Text("By " + a.authorName, style = MaterialTheme.typography.labelSmall, color = SlateGray)
+            }
             if (canManage) {
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallAction("Edit", Icons.Outlined.Edit, NavyBlue, onEdit, Modifier.weight(1f))
                     SmallAction("Delete", Icons.Outlined.DeleteOutline, EmergencyRed, onDelete, Modifier.weight(1f))
                 }
-            } else {
+            } else if (!showAuthor) {
                 Spacer(Modifier.height(4.dp))
                 Text("By " + a.authorName, style = MaterialTheme.typography.labelSmall, color = SlateGray)
             }

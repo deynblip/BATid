@@ -1,6 +1,6 @@
-
 package com.batid.app.ui.student
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -22,15 +22,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,19 +57,13 @@ import com.batid.app.ui.components.EmptyState
 import com.batid.app.ui.theme.BATidTheme
 import com.batid.app.ui.theme.BorderGray
 import com.batid.app.ui.theme.ChipBlueTint
+import com.batid.app.ui.theme.EmergencyRed
 import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.NavyBlue
 import com.batid.app.ui.theme.SlateGray
 import com.batid.app.util.formatDateTime
 import com.batid.app.util.relativeTime
 import com.batid.app.util.editedLabel
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.batid.app.ui.theme.EmergencyRed
 
 @Composable
 fun AnnouncementDetailScreen(
@@ -73,6 +76,8 @@ fun AnnouncementDetailScreen(
     onDelete: (() -> Unit)? = null
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     Column(modifier = modifier.fillMaxSize()) {
         BatidHeader(title = "Announcements", onBack = onBack)
         BatidSheet(modifier = Modifier.weight(1f)) {
@@ -107,6 +112,10 @@ fun AnnouncementDetailScreen(
                         }
                     )
                 }
+                // Task 7: only real web links are opened (http / https), never other schemes.
+                val link = announcement.linkUrl.trim()
+                val hasLink = link.startsWith("http://", ignoreCase = true) ||
+                        link.startsWith("https://", ignoreCase = true)
                 Column(modifier = Modifier.fillMaxSize()) {
                     Column(
                         modifier = Modifier
@@ -137,6 +146,30 @@ fun AnnouncementDetailScreen(
                                 color = InkNavy
                             )
                             Spacer(Modifier.height(12.dp))
+                        }
+                        if (hasLink) {
+                            Spacer(Modifier.height(4.dp))
+                            BatidButton(
+                                text = "Open link",
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(link)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Couldn't open this link.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                leadingIcon = Icons.Outlined.Link,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = link,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SlateGray,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(16.dp))
                         }
                         if (announcement.updatedAt > announcement.createdAt) {
                             Text(

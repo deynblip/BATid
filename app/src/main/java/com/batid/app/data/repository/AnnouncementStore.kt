@@ -118,6 +118,7 @@ object AnnouncementStore {
         programs: Collection<Program>,
         year: YearLevel,
         status: PublishStatus,
+        linkUrl: String = "",
         onError: (String) -> Unit = {}
     ) {
         val me = AuthRepository.currentProfile
@@ -139,7 +140,8 @@ object AnnouncementStore {
             authorName = authorNameFor(me),
             authorRole = me.role,
             createdAt = now,
-            updatedAt = now
+            updatedAt = now,
+            linkUrl = linkUrl
         )
         doc.set(announcement)
             .addOnFailureListener { e ->
@@ -156,6 +158,7 @@ object AnnouncementStore {
         programs: Collection<Program>,
         year: YearLevel,
         status: PublishStatus,
+        linkUrl: String = "",
         onError: (String) -> Unit = {}
     ) {
         val old = find(id)
@@ -173,6 +176,7 @@ object AnnouncementStore {
             "programs" to Program.entries.filter { it in programs }.map { it.name },
             "yearLevel" to year.name,
             "status" to status.name,
+            "linkUrl" to linkUrl,
             "createdAt" to (if (publishingNow) now else old.createdAt),
             "updatedAt" to now
         )

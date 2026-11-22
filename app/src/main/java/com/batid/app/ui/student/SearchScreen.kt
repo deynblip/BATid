@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -256,12 +257,18 @@ private fun SearchHeader(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-private fun FilterToggleRow(expanded: Boolean, activeCount: Int, onClick: () -> Unit) {
+internal fun FilterToggleRow(
+    expanded: Boolean,
+    activeCount: Int,
+    onClick: () -> Unit,
+    border: BorderStroke? = null
+) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = Color.White
+        color = Color.White,
+        border = border
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -285,7 +292,7 @@ private fun FilterToggleRow(expanded: Boolean, activeCount: Int, onClick: () -> 
 }
 
 @Composable
-private fun FilterSection(title: String, pills: @Composable () -> Unit) {
+internal fun FilterSection(title: String, pills: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,

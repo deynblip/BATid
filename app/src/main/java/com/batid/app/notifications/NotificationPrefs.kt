@@ -4,42 +4,41 @@ import android.content.Context
 import com.batid.app.data.model.Category
 
 /**
- * The Push Notifications switches on Profile. Stored in SharedPreferences (not Compose state)
- * so the FCM service can read them even when the app isn't open.
+ * The Push Notifications switches on Profile, saved PER ACCOUNT on this phone.
+ * They stay after sign out and come back when the same account logs in again.
+ * Stored in SharedPreferences (not Compose state) so the FCM service can read them even when the app is closed.
  */
 object NotificationPrefs {
     private const val PREFS = "batid_notification_prefs"
-    private const val KEY_ACTIVE = "active"
+    private const val KEY_ACTIVE_UID = "active_uid"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun defaultFor(category: Category) = when (category) {
-        Category.EMERGENCY -> true
-        Category.ACADEMICS -> true
-        Category.EVENTS -> true
-        Category.GENERAL -> false
-    }
+    private fun activeUid(context: Context): String =
+        prefs(context).getString(KEY_ACTIVE_UID, "").orEmpty()
 
-    /** Emergency alerts can't be turned off. */
-    fun isEnabled(context: Context, category: Category): Boolean =
-        category == Category.EMERGENCY ||
-                prefs(context).getBoolean(category.name.lowercase(), defaultFor(category))
+    private fun key(uid: String, category: Category) = "${uid}_${category.name.lowercase()}"
+
+    fun isEnabled(context: Context, category: Category): Boolean {
+        if (category == Category.EMERGENCY) return true
+        return prefs(context).getBoolean(key(activeUid(context), category), true)
+    }
 
     fun setEnabled(context: Context, category: Category, enabled: Boolean) {
         if (category == Category.EMERGENCY) return
-        prefs(context).edit().putBoolean(category.name.lowercase(), enabled).apply()
+        val uid = activeUid(context)
+        if (uid.isBlank()) return
+        prefs(context).edit().putBoolean(key(uid, category), enabled).apply()
     }
 
-    /** True only while a student is signed in; nothing is shown after sign out. */
-    fun isActive(context: Context): Boolean = prefs(context).getBoolean(KEY_ACTIVE, false)
+    fun isActive(context: Context): Boolean = activeUid(context).isNotBlank()
 
-    fun setActive(context: Context, active: Boolean) {
-        prefs(context).edit().putBoolean(KEY_ACTIVE, active).apply()
+    fun signIn(context: Context, uid: String) {
+        prefs(context).edit().putString(KEY_ACTIVE_UID, uid).apply()
     }
 
-    /** Back to defaults + inactive (called on sign out). */
-    fun reset(context: Context) {
-        prefs(context).edit().clear().apply()
+    fun signOut(context: Context) {
+        prefs(context).edit().remove(KEY_ACTIVE_UID).apply()
     }
 }

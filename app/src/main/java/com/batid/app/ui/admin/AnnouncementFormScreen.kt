@@ -39,6 +39,7 @@ import com.batid.app.ui.components.BatidButton
 import com.batid.app.ui.components.BatidHeader
 import com.batid.app.ui.components.BatidSheet
 import com.batid.app.ui.components.FilterPill
+import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.theme.BorderGray
 import com.batid.app.ui.theme.EmergencyBorder
 import com.batid.app.ui.theme.EmergencyRed
@@ -67,6 +68,26 @@ private val FormCategories = listOf(Category.ACADEMICS, Category.EVENTS, Categor
 private val AllPrograms: Set<String> = Program.entries.map { it.name }.toSet()
 private const val MaxLinkLength = 500
 
+private data class EmergencyTemplate(val label: String, val title: String, val body: String)
+
+private val EmergencyTemplates = listOf(
+    EmergencyTemplate(
+        label = "Classes suspended",
+        title = "Classes suspended today",
+        body = "All CICS classes are suspended today because of [reason]. Please stay safe and watch BATid for updates."
+    ),
+    EmergencyTemplate(
+        label = "Room unavailable",
+        title = "Room unavailable",
+        body = "Room [room] cannot be used today because of [reason]. Classes there will move to [new room]."
+    ),
+    EmergencyTemplate(
+        label = "Urgent notice",
+        title = "Urgent notice",
+        body = "[Write the urgent notice here.]"
+    )
+)
+
 /**
  * Create a new announcement ([existing] = null) or edit one.
  * [onBack] = null when it is shown as the "New" bottom tab (no back arrow).
@@ -78,8 +99,10 @@ fun AnnouncementFormScreen(
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+
     val context = LocalContext.current
     val editing = existing != null
+    val isOnline = LocalIsOnline.current
 
     var title by rememberSaveable(existing?.id) { mutableStateOf(existing?.title.orEmpty()) }
     var body by rememberSaveable(existing?.id) { mutableStateOf(existing?.body.orEmpty()) }
@@ -155,8 +178,14 @@ fun AnnouncementFormScreen(
                 cleanTitle, cleanBody, category, programs, year, status, cleanLink,
                 imageBase64 = pickedBytes?.let { ImageStore.toBase64(it) }
             ) { toast(it) }
-            toast(if (status == PublishStatus.PUBLISHED) "Announcement published" else "Draft saved")
-            // Clear the form so the "New" tab is blank next time.
+            toast(
+                when {
+                    !isOnline -> "You're offline. It will be saved when you're back online."
+                    status == PublishStatus.PUBLISHED -> "Announcement published"
+                    else -> "Draft saved"
+                }
+            )
+
             title = ""
             body = ""
             linkUrl = ""
@@ -311,13 +340,13 @@ fun EmergencyAlertScreen(
     var yearName by rememberSaveable { mutableStateOf(YearLevel.ALL.name) }
     var submitted by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
-
     val year = YearLevel.fromName(yearName)
     val programs = Program.entries.filter { it.name in programNames }
     val titleOk = title.isNotBlank()
-    val bodyOk = body.isNotBlank()
+    val bodyOk = body.isNotBlank() && !body.contains('[')
     val programOk = programs.isNotEmpty()
     val summary = audienceSummary(programs, year)
+    val isOnline = LocalIsOnline.current
 
     Column(modifier = modifier.fillMaxSize()) {
         BatidHeader(title = "Emergency alert", subtitle = "For urgent notices only", onBack = onBack)
@@ -346,6 +375,25 @@ fun EmergencyAlertScreen(
                         }
                     }
                     Spacer(Modifier.height(16.dp))
+                    AuthLabel("Quick templates")
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        EmergencyTemplates.forEach { t ->
+                            FilterPill(
+                                label = t.label,
+                                selected = title == t.title,
+                                onClick = {
+                                    title = t.title
+                                    body = t.body
+                                    submitted = false
+                                }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
                     FormField(
                         label = "Headline",
                         value = title,
@@ -361,7 +409,11 @@ fun EmergencyAlertScreen(
                         onValueChange = { body = it },
                         placeholder = "What should students know or do?",
                         minLines = 5,
-                        error = if (submitted && !bodyOk) "Enter the details." else null
+                        error = when {
+                            !submitted || bodyOk -> null
+                            body.contains('[') -> "Replace the parts in [brackets] first."
+                            else -> "Enter the details."
+                        }
                     )
                     Spacer(Modifier.height(16.dp))
                     AudienceSection(
@@ -402,7 +454,13 @@ fun EmergencyAlertScreen(
             title = { Text("Send emergency alert?", style = MaterialTheme.typography.titleMedium, color = InkNavy) },
             text = {
                 Text(
-                    "This goes to $summary right away. You can still edit or delete it later from Manage.",
+                    if (isOnline) {
+                        "This goes to $summary right away. Students get a notification even if they turned " +
+                                "other notifications off. You can still edit or delete it later from Manage."
+                    } else {
+                        "You're offline. The alert will be saved now and sent to $summary as soon as you're " +
+                                "back online. Keep BATid open until then."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = SlateGray
                 )
@@ -412,7 +470,11 @@ fun EmergencyAlertScreen(
                     AnnouncementStore.publish(
                         title.trim(), body.trim(), Category.EMERGENCY, programs, year, PublishStatus.PUBLISHED
                     ) { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-                    Toast.makeText(context, "Emergency alert sent", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        if (isOnline) "Emergency alert sent" else "Saved. It will be sent when you're back online.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     showConfirm = false
                     onDone()
                 }) { Text("Send alert", color = EmergencyRed, style = MaterialTheme.typography.labelLarge) }

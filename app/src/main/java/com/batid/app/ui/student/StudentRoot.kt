@@ -89,7 +89,7 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
     LaunchedEffect(Unit) {
         AnnouncementStore.start()
         NotificationHelper.createChannels(context)
-        NotificationPrefs.setActive(context, true)
+        NotificationPrefs.signIn(context, profile.uid)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -205,7 +205,7 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
                         },
                         onSignOut = {
                             PushTopics.clear()
-                            NotificationPrefs.reset(context)
+                            NotificationPrefs.signOut(context)
                             AuthRepository.signOut()
                             onSignOut()
                         },

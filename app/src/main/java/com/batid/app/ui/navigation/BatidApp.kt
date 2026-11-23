@@ -25,6 +25,8 @@ import com.batid.app.ui.student.StudentRoot
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
+import com.batid.app.notifications.NotificationPrefs
+import com.batid.app.notifications.PushTopics
 
 @Composable
 fun BatidApp() {
@@ -109,6 +111,9 @@ fun BatidApp() {
                 AdminRoot(
                     onSignOut = {
                         SidePrefs.setCouncilOnAdminSide(context, false)
+                        // Council is also a student: stop their pushes like the student side does.
+                        PushTopics.clear()
+                        NotificationPrefs.signOut(context)
                         AuthRepository.signOut()
                         navController.signOutToWelcome()
                     },

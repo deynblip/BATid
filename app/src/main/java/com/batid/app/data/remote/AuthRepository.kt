@@ -10,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
@@ -30,6 +31,90 @@ object AuthRepository {
 
     /** Email of the signed-in account ("" if nobody). */
     val currentEmail: String get() = auth.currentUser?.email.orEmpty()
+
+    /** Name from the Google account, used to fill "Complete your profile". */
+    val currentDisplayName: String get() = auth.currentUser?.displayName.orEmpty()
+
+    /**
+     * Task 12: signs in to Firebase with the Google ID token.
+     * onDone(profile, needsProfile, error):
+     *  - profile != null           -> existing BATid account, go to the app
+     *  - needsProfile == true      -> first time with Google: show "Complete your profile"
+     *  - error != null             -> show the message (non-school accounts are rejected here)
+     */
+    fun signInWithGoogle(
+        idToken: String,
+        onDone: (profile: UserProfile?, needsProfile: Boolean, error: String?) -> Unit
+    ) {
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(idToken, null))
+            .addOnSuccessListener { result ->
+                val user = result.user
+                if (user == null) {
+                    onDone(null, false, "Something went wrong. Please try again.")
+                    return@addOnSuccessListener
+                }
+                val email = user.email.orEmpty().lowercase()
+                if (!email.endsWith("@g.batstate-u.edu.ph")) {
+                    // Not a school account: remove it if it was just created, then sign out.
+                    val finish = {
+                        auth.signOut()
+                        onDone(null, false, "Please use your @g.batstate-u.edu.ph school account.")
+                    }
+                    if (result.additionalUserInfo?.isNewUser == true) {
+                        user.delete().addOnCompleteListener { finish() }
+                    } else {
+                        finish()
+                    }
+                    return@addOnSuccessListener
+                }
+                db.collection("users").document(user.uid).get()
+                    .addOnSuccessListener { snap ->
+                        val profile = snap.toObject(UserProfile::class.java)
+                        currentProfile = profile
+                        onDone(profile, profile == null, null)
+                    }
+                    .addOnFailureListener { e ->
+                        auth.signOut()
+                        onDone(null, false, friendlyError(e))
+                    }
+            }
+            .addOnFailureListener { e ->
+                onDone(
+                    null,
+                    false,
+                    if (e is FirebaseAuthUserCollisionException)
+                        "This email already has a BATid password. Log in with your email and password."
+                    else friendlyError(e)
+                )
+            }
+    }
+
+    /** Task 12: saves users/{uid} for a Google account that has no BATid profile yet. */
+    fun createProfile(profile: UserProfile, onDone: (error: String?) -> Unit) {
+        val user = auth.currentUser
+        if (user == null) {
+            onDone("Please log in again.")
+            return
+        }
+        val saved = profile.copy(uid = user.uid, email = user.email.orEmpty().lowercase())
+        db.collection("users").document(user.uid).set(saved)
+            .addOnSuccessListener {
+                currentProfile = saved
+                onDone(null)
+            }
+            .addOnFailureListener { e ->
+                onDone(
+                    if (e is FirebaseFirestoreException &&
+                        e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED
+                    ) {
+                        if (profile.role == UserRole.STUDENT.name) "Could not create your profile. Please try again."
+                        else "Invalid code. Please check it and try again."
+                    } else {
+                        friendlyError(e)
+                    }
+                )
+            }
+    }
 
     /**
      * True when this account must still verify its school email before entering the app.

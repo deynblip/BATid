@@ -453,7 +453,6 @@ fun CreateAccountScreen(onBack: () -> Unit, onCreated: () -> Unit, onLogIn: () -
                     ) { error ->
                         loading = false
                         if (error == null) {
-                            AuthRepository.signOut()
                             onCreated()
                         } else {
                             showComingSoon(context, error)

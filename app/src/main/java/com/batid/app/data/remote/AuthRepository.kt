@@ -3,7 +3,9 @@ package com.batid.app.data.remote
 import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.repository.AnnouncementStore
+import com.batid.app.data.model.roleEnum
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -26,6 +28,48 @@ object AuthRepository {
 
     val isSignedIn: Boolean get() = auth.currentUser != null
 
+    /** Email of the signed-in account ("" if nobody). */
+    val currentEmail: String get() = auth.currentUser?.email.orEmpty()
+
+    /**
+     * True when this account must still verify its school email before entering the app.
+     * ADMIN and presentation accounts (skipEmailVerification = true, set in the console) are exempt.
+     */
+    fun needsEmailVerification(profile: UserProfile): Boolean {
+        val user = auth.currentUser ?: return false
+        if (profile.roleEnum == UserRole.ADMIN || profile.skipEmailVerification) return false
+        return !user.isEmailVerified
+    }
+
+    /** Asks Firebase again whether the email is verified (after the user clicked the link). */
+    fun reloadUser(onDone: (verified: Boolean) -> Unit) {
+        val user = auth.currentUser
+        if (user == null) {
+            onDone(false)
+            return
+        }
+        user.reload().addOnCompleteListener {
+            onDone(auth.currentUser?.isEmailVerified == true)
+        }
+    }
+
+    /** Sends the verification link again. */
+    fun resendVerification(onDone: (error: String?) -> Unit) {
+        val user = auth.currentUser
+        if (user == null) {
+            onDone("Please log in again.")
+            return
+        }
+        user.sendEmailVerification()
+            .addOnSuccessListener { onDone(null) }
+            .addOnFailureListener { e ->
+                onDone(
+                    if (e is FirebaseTooManyRequestsException) "Too many emails sent. Please wait a few minutes."
+                    else friendlyError(e)
+                )
+            }
+    }
+
     fun signUp(
         email: String,
         password: String,
@@ -43,6 +87,8 @@ object AuthRepository {
                 val saved = profile.copy(uid = user.uid, email = cleanEmail)
                 db.collection("users").document(user.uid).set(saved)
                     .addOnSuccessListener {
+                        // Stay signed in: the app goes straight to the "Verify your email" screen.
+                        currentProfile = saved
                         user.sendEmailVerification()
                         onDone(null)
                     }
@@ -133,7 +179,7 @@ object AuthRepository {
         currentProfile = null
         auth.signOut()
     }
-    
+
     fun sendPasswordReset(email: String, onDone: (error: String?) -> Unit) {
         auth.sendPasswordResetEmail(email.trim().lowercase())
             .addOnSuccessListener { onDone(null) }

@@ -79,6 +79,8 @@ service cloud.firestore {
         && validProgram(request.resource.data.program)
         && validYear(request.resource.data.yearLevel)
         && schoolEmail()
+        // Only the console can turn on skipEmailVerification (presentation accounts).
+        && request.resource.data.get('skipEmailVerification', false) == false
         && (
           request.resource.data.role == 'STUDENT'
           || (request.resource.data.role == 'FACULTY' && validFacultyCode())

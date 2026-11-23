@@ -19,9 +19,11 @@ import com.batid.app.ui.admin.AdminRoot
 import com.batid.app.ui.auth.CreateAccountScreen
 import com.batid.app.ui.auth.SplashScreen
 import com.batid.app.ui.auth.StudentSignInScreen
+import com.batid.app.ui.auth.VerifyEmailScreen
 import com.batid.app.ui.auth.WelcomeScreen
 import com.batid.app.ui.components.LocalIsOnline
 import com.batid.app.ui.student.StudentRoot
+import com.batid.app.data.model.UserProfile
 import com.batid.app.data.model.UserRole
 import com.batid.app.data.model.roleEnum
 import com.batid.app.data.remote.AuthRepository
@@ -34,6 +36,15 @@ fun BatidApp() {
     val observer = remember { ConnectivityObserver(context) }
     val isOnline by observer.isOnline.collectAsStateWithLifecycle(initialValue = observer.isCurrentlyOnline())
     val navController = rememberNavController()
+
+    /** Where a signed-in account goes: verify email first, then its own side. */
+    fun homeFor(profile: UserProfile): String = when {
+        AuthRepository.needsEmailVerification(profile) -> Routes.VERIFY_EMAIL
+        profile.roleEnum.usesAdminSide -> Routes.ADMIN_ROOT
+        // Council: back to the last side used (student or dashboard).
+        profile.roleEnum == UserRole.COUNCIL && SidePrefs.councilOnAdminSide(context) -> Routes.ADMIN_ROOT
+        else -> Routes.STUDENT_ROOT
+    }
 
     CompositionLocalProvider(LocalIsOnline provides isOnline) {
         NavHost(
@@ -53,14 +64,7 @@ fun BatidApp() {
                     if (AuthRepository.isSignedIn) {
                         // May naka-login pa sa Firebase. Kunin ang profile para malaman ang role.
                         AuthRepository.loadCurrentProfile { profile ->
-                            when {
-                                profile == null -> go(Routes.WELCOME)
-                                profile.roleEnum.usesAdminSide -> go(Routes.ADMIN_ROOT)
-                                // Council: balik sa huling side na ginamit (student o dashboard).
-                                profile.roleEnum == UserRole.COUNCIL &&
-                                        SidePrefs.councilOnAdminSide(context) -> go(Routes.ADMIN_ROOT)
-                                else -> go(Routes.STUDENT_ROOT)
-                            }
+                            if (profile == null) go(Routes.WELCOME) else go(homeFor(profile))
                         }
                     } else {
                         go(Routes.WELCOME)
@@ -76,10 +80,10 @@ fun BatidApp() {
             composable(Routes.STUDENT_SIGN_IN) {
                 StudentSignInScreen(
                     onBack = { navController.popBackStack() },
-                    onSignedIn = { role ->
-                        navController.enterRoot(
-                            if (role.usesAdminSide) Routes.ADMIN_ROOT else Routes.STUDENT_ROOT
-                        )
+                    onSignedIn = { _ ->
+                        val profile = AuthRepository.currentProfile
+                        if (profile == null) navController.signOutToWelcome()
+                        else navController.enterRoot(homeFor(profile))
                     }
                 )
             }
@@ -87,11 +91,25 @@ fun BatidApp() {
                 CreateAccountScreen(
                     onBack = { navController.popBackStack() },
                     onCreated = {
-                        Toast.makeText(context, "Account created. Please log in.", Toast.LENGTH_SHORT).show()
-                        navController.navigate(Routes.STUDENT_SIGN_IN) { popUpTo(Routes.WELCOME) }
+                        Toast.makeText(context, "Account created. Check your email to verify it.", Toast.LENGTH_LONG).show()
+                        navController.enterRoot(Routes.VERIFY_EMAIL)
                     },
                     onLogIn = {
                         navController.navigate(Routes.STUDENT_SIGN_IN) { popUpTo(Routes.WELCOME) }
+                    }
+                )
+            }
+            composable(Routes.VERIFY_EMAIL) {
+                VerifyEmailScreen(
+                    email = AuthRepository.currentEmail,
+                    onVerified = {
+                        val profile = AuthRepository.currentProfile
+                        if (profile == null) navController.signOutToWelcome()
+                        else navController.enterRoot(homeFor(profile))
+                    },
+                    onSignOut = {
+                        AuthRepository.signOut()
+                        navController.signOutToWelcome()
                     }
                 )
             }

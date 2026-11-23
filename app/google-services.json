@@ -12,7 +12,20 @@
           "package_name": "com.batid.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "46958673272-adf0djn2nj4coea3obstap9msr5s2jsm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.batid.app",
+            "certificate_hash": "a6f3f8f1fd94fe5dffb8743adb8f2e6e6a5aefef"
+          }
+        },
+        {
+          "client_id": "46958673272-f8f64tcvffvsdu3je0fqopffna09stqp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAcK7gOt8wunIjlvD23MMW9ORakFJXMhfI"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "46958673272-f8f64tcvffvsdu3je0fqopffna09stqp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

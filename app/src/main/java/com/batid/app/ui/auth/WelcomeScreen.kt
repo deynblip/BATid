@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,14 +29,42 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.batid.app.R
+import com.batid.app.data.remote.AuthRepository
+import com.batid.app.data.remote.GoogleSignIn
 import com.batid.app.ui.components.BatidButton
 import com.batid.app.ui.components.StatusBarAppearance
+import kotlinx.coroutines.launch
 
 /** Welcome screen: logo, peeking mascot, Log in / Create Account / Continue with Google. */
 @Composable
-fun WelcomeScreen(onLogIn: () -> Unit, onCreateAccount: () -> Unit) {
+fun WelcomeScreen(
+    onLogIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+    onGoogleSignedIn: (needsProfile: Boolean) -> Unit
+) {
     StatusBarAppearance(darkIcons = true)
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var googleLoading by remember { mutableStateOf(false) }
+
+    // Task 12: Google account picker -> Firebase sign in -> profile check.
+    fun continueWithGoogle() {
+        if (googleLoading) return
+        googleLoading = true
+        scope.launch {
+            val result = GoogleSignIn.getIdToken(context)
+            val token = result.idToken
+            if (token == null) {
+                googleLoading = false
+                result.error?.let { showComingSoon(context, it) }
+                return@launch
+            }
+            AuthRepository.signInWithGoogle(token) { _, needsProfile, error ->
+                googleLoading = false
+                if (error != null) showComingSoon(context, error) else onGoogleSignedIn(needsProfile)
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -79,7 +112,7 @@ fun WelcomeScreen(onLogIn: () -> Unit, onCreateAccount: () -> Unit) {
                     OrDivider()
                     Spacer(Modifier.height(16.dp))
                     GoogleButton(
-                        onClick = { showComingSoon(context, "Google sign-in will be added with Firebase.") },
+                        onClick = { continueWithGoogle() },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

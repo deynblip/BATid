@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.batid.app.data.network.ConnectivityObserver
 import com.batid.app.ui.admin.AdminRoot
+import com.batid.app.ui.auth.CompleteProfileScreen
 import com.batid.app.ui.auth.CreateAccountScreen
 import com.batid.app.ui.auth.SplashScreen
 import com.batid.app.ui.auth.StudentSignInScreen
@@ -74,7 +75,15 @@ fun BatidApp() {
             composable(Routes.WELCOME) {
                 WelcomeScreen(
                     onLogIn = { navController.navigate(Routes.STUDENT_SIGN_IN) },
-                    onCreateAccount = { navController.navigate(Routes.CREATE_ACCOUNT) }
+                    onCreateAccount = { navController.navigate(Routes.CREATE_ACCOUNT) },
+                    onGoogleSignedIn = { needsProfile ->
+                        val profile = AuthRepository.currentProfile
+                        when {
+                            needsProfile -> navController.enterRoot(Routes.COMPLETE_PROFILE)
+                            profile != null -> navController.enterRoot(homeFor(profile))
+                            else -> Unit
+                        }
+                    }
                 )
             }
             composable(Routes.STUDENT_SIGN_IN) {
@@ -96,6 +105,22 @@ fun BatidApp() {
                     },
                     onLogIn = {
                         navController.navigate(Routes.STUDENT_SIGN_IN) { popUpTo(Routes.WELCOME) }
+                    }
+                )
+            }
+            // Task 12: first Google sign-in, no BATid profile yet.
+            composable(Routes.COMPLETE_PROFILE) {
+                CompleteProfileScreen(
+                    email = AuthRepository.currentEmail,
+                    defaultName = AuthRepository.currentDisplayName,
+                    onDone = {
+                        val profile = AuthRepository.currentProfile
+                        if (profile == null) navController.signOutToWelcome()
+                        else navController.enterRoot(homeFor(profile))
+                    },
+                    onCancel = {
+                        AuthRepository.signOut()
+                        navController.signOutToWelcome()
                     }
                 )
             }

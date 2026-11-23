@@ -8,7 +8,6 @@ object Routes {
     const val CREATE_ACCOUNT = "create_account"
     const val VERIFY_EMAIL = "verify_email"
     const val COMPLETE_PROFILE = "complete_profile"
-    const val ADMIN_SIGN_IN = "admin_sign_in"
     const val STUDENT_ROOT = "student"
     const val ADMIN_ROOT = "admin"
 }

@@ -37,21 +37,5 @@ fun buildNotifications(
             announcementId = a.id
         )
     }
-    val system = listOf(
-        AppNotification(
-            id = "sys_year",
-            type = NotificationType.SYSTEM,
-            title = "Check your year level",
-            message = "Keep your program and year level in Profile correct so you get the right announcements.",
-            timestamp = now - 3 * 24 * 60 * 60_000L
-        ),
-        AppNotification(
-            id = "sys_welcome",
-            type = NotificationType.SYSTEM,
-            title = "Welcome to BATid",
-            message = "Official CICS announcements and alerts will show up here.",
-            timestamp = now - 7 * 24 * 60 * 60_000L
-        )
-    )
-    return (fromAnnouncements + system).sortedByDescending { it.timestamp }
+    return fromAnnouncements.sortedByDescending { it.timestamp }
 }

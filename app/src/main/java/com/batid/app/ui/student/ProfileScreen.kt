@@ -79,7 +79,6 @@ private enum class GroupPicker { PROGRAM, YEAR }
 @Composable
 fun ProfileScreen(
     profile: UserProfile,
-    onChangeProgram: (Program) -> Unit,
     onChangeYear: (YearLevel) -> Unit,
     onSignOut: () -> Unit,
     onOpenCouncilDashboard: (() -> Unit)? = null,
@@ -180,14 +179,6 @@ fun ProfileScreen(
     }
 
     when (picker) {
-        GroupPicker.PROGRAM -> ChoiceDialog(
-            title = "Choose your program",
-            options = Program.entries.toList(),
-            selected = program,
-            labelOf = { it.label },
-            onSelect = { onChangeProgram(it); picker = null },
-            onDismiss = { picker = null }
-        )
         GroupPicker.YEAR -> ChoiceDialog(
             title = "Choose your year level",
             options = YearLevel.entries.filter { it != YearLevel.ALL },
@@ -196,7 +187,7 @@ fun ProfileScreen(
             onSelect = { if (it != year) pendingYear = it; picker = null },
             onDismiss = { picker = null }
         )
-        null -> Unit
+        GroupPicker.PROGRAM, null -> Unit
     }
 
     pendingYear?.let { newYear ->

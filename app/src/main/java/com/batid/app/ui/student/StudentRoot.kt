@@ -60,7 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.batid.app.ui.help.BatidDrawerSheet
 import com.batid.app.ui.help.helpDestinations
 import kotlinx.coroutines.launch
-
+import com.batid.app.notifications.OpenFromPush
 private val studentTabs = listOf(
     BottomBarItem(StudentRoutes.HOME, "Home", Icons.Outlined.Home),
     BottomBarItem(StudentRoutes.SEARCH, "Search", Icons.Outlined.Search),
@@ -108,6 +108,16 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
     LaunchedEffect(readIds) {
         if (profile.uid.isNotBlank()) SavedPrefs.setRead(context, profile.uid, readIds)
     }
+
+    val openId = OpenFromPush.announcementId
+    LaunchedEffect(openId) {
+        if (openId != null) {
+            readIds = readIds + "n_$openId"
+            navController.navigate(StudentRoutes.announcement(openId)) { launchSingleTop = true }
+            OpenFromPush.announcementId = null
+        }
+    }
+
     val notifications = remember(studentFeed) { buildNotifications(studentFeed) }
     val unreadCount = notifications.count { it.id !in readIds }
 
@@ -195,10 +205,6 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
                 composable(StudentRoutes.PROFILE) {
                     ProfileScreen(
                         profile = profile,
-                        onChangeProgram = { p ->
-                            profile = profile.copy(program = p.name)
-                            AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)
-                        },
                         onChangeYear = { y ->
                             profile = profile.copy(yearLevel = y.name)
                             AuthRepository.updateProgramAndYear(profile.program, profile.yearLevel)

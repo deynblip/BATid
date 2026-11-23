@@ -7,7 +7,7 @@
 BATid is an Android app that gives CICS students, faculty, student council officers and administrators of Batangas State University (BatStateU), The National Engineering University – Alangilan Campus, one official place for departmental announcements and alerts.
 
 > Final project for **CS 312: Mobile Computing**, 1st Semester AY 2026–2027, Group 15, CS-3101.
- 
+
 ---
 
 ## Project Description
@@ -28,6 +28,7 @@ BATid solves this with one mobile app for official CICS announcements.
 1. Implement a centralized platform for publishing and managing categorized departmental announcements.
 2. Provide program-based and year-level filtering so announcements reach the relevant audience.
 3. Implement push notifications for timely delivery of important announcements and emergency alerts.
+
 ## Features
 
 **Students**
@@ -40,14 +41,17 @@ BATid solves this with one mobile app for official CICS announcements.
 - Notification preferences per account (Emergency alerts are always on); year level can be changed in Profile
 - "No internet connection" banner, previously loaded announcements stay readable offline (Firestore cache), and the app opens offline with the saved profile
 - Menu with Help & FAQ, About BATid, Contact / Report a problem and Privacy note
-  **Student Council**
+
+**Student Council**
 - Same as students, plus a Council dashboard to post Academics, Events and General announcements
 - Cannot send Emergency alerts; can see, edit or delete only their own posts
-  **Faculty and Administrators**
+
+**Faculty and Administrators**
 - Dashboard with the published feed and collapsible Program and Year filters
 - Create, edit, delete and manage announcements (drafts and published), with optional link and image
 - "Send an emergency alert" flow with quick templates ("Classes suspended", "Room unavailable", "Urgent notice") and a confirmation step
 - Faculty can see, edit or delete only their own posts; administrators manage all posts, with filters by author (Mine, Faculty, Council), program and year
+
 ### Categories
 
 | Category | Purpose |
@@ -72,6 +76,7 @@ BATid solves this with one mobile app for official CICS announcements.
 - **Wi-Fi and cellular:** the app works on both and refreshes when the network switches
 - **Push vs. polling:** FCM push notifications and Firestore real-time listeners are used instead of periodic polling to save battery and meet the 10-second delivery target
 - **Mobile constraints addressed:** limited bandwidth (lightweight text, images compressed to under 400 KB), intermittent connectivity (offline cache, status banner, queued posts), battery use, Wi-Fi/cellular handoff and security
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -95,6 +100,7 @@ The project uses the free Firebase **Spark** plan. Cloud Functions were replaced
 3. After the post is saved, the app calls the Apps Script push sender. The sender verifies the publisher's Firebase login, checks the role and author, and sends a data-only push message to the matching FCM topics (for example `bscs_3` or `bsit_all`).
 4. Students subscribed to those topics receive the notification, and the app applies their notification preferences.
 5. Students open BATid (or tap the notification) and read the full announcement, which is also updated live in their feed.
+
 ## Project Status
 
 | Component | Status |
@@ -109,24 +115,36 @@ The project uses the free Firebase **Spark** plan. Cloud Functions were replaced
 | Emergency alert flow with templates | Done |
 | Demo content and documentation | In progress |
 
-## Getting Started
+## Download the App
+
+You can install BATid on any Android phone without Android Studio.
+
+**[Download BATid (APK)](PASTE_GOOGLE_DRIVE_LINK_HERE)**
+
+1. Open the link on an Android phone (Android 8.0 or newer) and download the `.apk` file.
+2. Open the downloaded file. If asked, allow **Install unknown apps** for your browser or Google Drive.
+3. If Google Play Protect shows a warning, tap **More details > Install anyway** (the app is not on the Play Store).
+4. Open BATid and sign in with your `@g.batstate-u.edu.ph` account, or tap **Continue with Google**.
+
+To update, download the newest APK from the same link. If the install fails, uninstall the old version first.
+
+## Getting Started (for developers)
 
 **Requirements:** Android Studio (latest stable), JDK 17 or newer, an Android phone or emulator with Android 8.0 (API 26) or higher.
 
 1. Clone the repository:
-```
-git clone <repository-url>
-```
+   ```
+   git clone <repository-url>
+   ```
 2. Open the project folder in Android Studio and wait for Gradle sync to finish.
 3. Make sure `app/google-services.json` is present (it is included in the repository).
 4. Connect a phone with USB debugging on, or start an emulator, then press **Run**.
-   To test sign up, use a school email ending in `@g.batstate-u.edu.ph`.
 
-**Google sign-in on your computer (once per computer):**
-1. In Android Studio's Terminal, run `.\gradlew signingReport` and copy the `SHA1` under `Variant: debug`.
-2. In the Firebase console: Project settings > General > Your apps > BATid > **Add fingerprint**, paste it and save.
-3. Download the new `google-services.json` from the same page, replace `app/google-services.json`, sync Gradle and run.
-   Do not upgrade Kotlin, the Android Gradle plugin or the Firebase BoM, and keep `googleid` at 1.1.1 (newer versions need a newer Kotlin).
+To test sign up, use a school email ending in `@g.batstate-u.edu.ph`.
+
+**Optional, Google sign-in from your own computer:** Continue with Google only works in builds from computers whose SHA-1 fingerprint is registered in Firebase. Run `.\gradlew signingReport`, add the debug `SHA1` in Firebase (Project settings > Your apps > BATid > Add fingerprint), then download the new `google-services.json`. Email and password sign-in works without this.
+
+Do not upgrade Kotlin, the Android Gradle plugin or the Firebase BoM, and keep `googleid` at 1.1.1 (newer versions need a newer Kotlin).
 
 ## Project Structure
 
@@ -160,17 +178,19 @@ firestore.rules         Firestore security rules
 - Do not commit passwords, service account keys or any secret code.
 - Administrator accounts can only be assigned in the Firebase console. Presentation accounts can skip email verification only through a field set in the console (`skipEmailVerification`); the app cannot set it.
 - Users can change only their year level; role and program are locked by the security rules.
+
 ## Limitations and Future Work
 
 - Faculty and Council codes are shared per role; per-person codes with an expiry date would be safer.
-- A release build needs its own SHA-1 fingerprint for Google sign-in.
+- The APK is a test (debug) build shared by link; a signed release build would need its own SHA-1 fingerprint for Google sign-in.
 - Profile pictures and section-level targeting are not included.
 - Images are limited to one per announcement (under 400 KB) because Cloud Storage is not used.
+
 ## Developers
 
 - Boo, Vianci Mariz
 - Banaag, Ace Angela
 - Cura, Dane Mercy
-  **Course:** CS 312 Mobile Computing, Computer Science Department
-  **School:** College of Informatics and Computing Sciences, Batangas State University – The National Engineering University, Alangilan Campus
- 
+
+**Course:** CS 312 Mobile Computing, Computer Science Department
+**School:** College of Informatics and Computing Sciences, Batangas State University – The National Engineering University, Alangilan Campus

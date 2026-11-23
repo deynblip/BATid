@@ -6,6 +6,7 @@ object Routes {
     const val WELCOME = "welcome"
     const val STUDENT_SIGN_IN = "student_sign_in"
     const val CREATE_ACCOUNT = "create_account"
+    const val VERIFY_EMAIL = "verify_email"
     const val ADMIN_SIGN_IN = "admin_sign_in"
     const val STUDENT_ROOT = "student"
     const val ADMIN_ROOT = "admin"

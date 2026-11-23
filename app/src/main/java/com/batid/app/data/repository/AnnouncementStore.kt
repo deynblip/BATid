@@ -115,6 +115,7 @@ object AnnouncementStore {
         year: YearLevel,
         status: PublishStatus,
         linkUrl: String = "",
+        imageBase64: String? = null,
         onError: (String) -> Unit = {}
     ) {
         val me = AuthRepository.currentProfile
@@ -137,11 +138,12 @@ object AnnouncementStore {
             authorRole = me.role,
             createdAt = now,
             updatedAt = now,
-            linkUrl = linkUrl
+            linkUrl = linkUrl,
+            hasImage = imageBase64 != null
         )
         doc.set(announcement)
             .addOnSuccessListener {
-                // Push only for published posts (drafts stay quiet).
+                if (imageBase64 != null) ImageStore.save(doc.id, me.uid, imageBase64, onError)
                 if (status == PublishStatus.PUBLISHED) {
                     PushSender.send(doc.id) { ok, message ->
                         if (!ok) onError("Posted, but the notification was not sent: $message")
@@ -163,6 +165,8 @@ object AnnouncementStore {
         year: YearLevel,
         status: PublishStatus,
         linkUrl: String = "",
+        newImageBase64: String? = null,
+        removeImage: Boolean = false,
         onError: (String) -> Unit = {}
     ) {
         val old = find(id)
@@ -181,12 +185,18 @@ object AnnouncementStore {
             "yearLevel" to year.name,
             "status" to status.name,
             "linkUrl" to linkUrl,
+            "hasImage" to (newImageBase64 != null || (old.hasImage && !removeImage)),
             "createdAt" to (if (publishingNow) now else old.createdAt),
             "updatedAt" to now
         )
         FirebaseFirestore.getInstance().collection("announcements").document(id)
             .update(changes)
             .addOnSuccessListener {
+                when {
+                    newImageBase64 != null ->
+                        ImageStore.save(id, AuthRepository.currentProfile?.uid.orEmpty(), newImageBase64, onError)
+                    removeImage && old.hasImage -> ImageStore.delete(id)
+                }
                 // A draft published for the first time gets a push. Normal edits don't.
                 if (publishingNow) {
                     PushSender.send(id) { ok, message ->
@@ -200,11 +210,15 @@ object AnnouncementStore {
             }
     }
     fun delete(id: String, onError: (String) -> Unit = {}) {
-        FirebaseFirestore.getInstance().collection("announcements").document(id)
-            .delete()
-            .addOnFailureListener { e ->
-                Log.e("AnnouncementStore", "Delete failed", e)
-                onError("Could not delete the announcement. Please try again.")
-            }
+        val deletePost = {
+            FirebaseFirestore.getInstance().collection("announcements").document(id)
+                .delete()
+                .addOnFailureListener { e ->
+                    Log.e("AnnouncementStore", "Delete failed", e)
+                    onError("Could not delete the announcement. Please try again.")
+                }
+        }
+        // The image is deleted first: its rules need the announcement to still exist.
+        if (find(id)?.hasImage == true) ImageStore.delete(id) { deletePost() } else deletePost()
     }
 }

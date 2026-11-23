@@ -15,7 +15,7 @@ import com.batid.app.data.model.Category
 
 object NotificationHelper {
     const val CHANNEL_EMERGENCY = "emergency_alerts"
-    const val CHANNEL_ANNOUNCEMENTS = "announcements"
+    const val CHANNEL_ANNOUNCEMENTS = "announcements_v2"
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -26,11 +26,12 @@ object NotificationHelper {
             }
         )
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ANNOUNCEMENTS, "Announcements", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            NotificationChannel(CHANNEL_ANNOUNCEMENTS, "Announcements", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Academics, events and general announcements"
             }
         )
-    }
+        // The old quiet channel can't be made louder, so remove it.
+        manager.deleteNotificationChannel("announcements")    }
 
     /** False when the user denied the permission or turned notifications off in system settings. */
     fun canPost(context: Context): Boolean =
@@ -65,7 +66,7 @@ object NotificationHelper {
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(if (emergency) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(openApp)
             .build()

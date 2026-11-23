@@ -48,6 +48,19 @@ import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.NavyBlue
 import com.batid.app.ui.theme.RoyalBlue
 import com.batid.app.ui.theme.SlateGray
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.batid.app.data.repository.ImageStore
+import com.batid.app.ui.components.AnnouncementImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val StringSetSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
 private val FormCategories = listOf(Category.ACADEMICS, Category.EVENTS, Category.GENERAL)
@@ -104,19 +117,51 @@ fun AnnouncementFormScreen(
 
     fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
 
+    val scope = rememberCoroutineScope()
+    var pickedBytes by remember(existing?.id) { mutableStateOf<ByteArray?>(null) }
+    var pickedPreview by remember(existing?.id) { mutableStateOf<ImageBitmap?>(null) }
+    var removeImage by remember(existing?.id) { mutableStateOf(false) }
+    var compressing by remember { mutableStateOf(false) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            compressing = true
+            scope.launch {
+                val bytes = withContext(Dispatchers.Default) { ImageStore.compress(context, uri) }
+                compressing = false
+                if (bytes == null) {
+                    toast("This picture can't be used. Please try another one.")
+                } else {
+                    pickedBytes = bytes
+                    pickedPreview = ImageStore.preview(bytes)
+                    removeImage = false
+                }
+            }
+        }
+    }
+    fun pickImage() = imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+
     fun submit(status: PublishStatus) {
         submitted = true
+        if (compressing) {
+            toast("Please wait, the picture is still being prepared.")
+            return
+        }
         if (!titleOk || !bodyOk || !programOk || !linkOk) return
         val cleanTitle = title.trim()
         val cleanBody = body.trim()
 
         if (existing == null) {
-            AnnouncementStore.publish(cleanTitle, cleanBody, category, programs, year, status, cleanLink) { toast(it) }
+            AnnouncementStore.publish(
+                cleanTitle, cleanBody, category, programs, year, status, cleanLink,
+                imageBase64 = pickedBytes?.let { ImageStore.toBase64(it) }
+            ) { toast(it) }
             toast(if (status == PublishStatus.PUBLISHED) "Announcement published" else "Draft saved")
             // Clear the form so the "New" tab is blank next time.
             title = ""
             body = ""
             linkUrl = ""
+            pickedBytes = null
+            pickedPreview = null
             categoryName = Category.GENERAL.name
             programNames = AllPrograms
             yearName = YearLevel.ALL.name
@@ -128,11 +173,16 @@ fun AnnouncementFormScreen(
                     existing.categoryEnum == category &&
                     existing.programEnums.toSet() == programs.toSet() &&
                     existing.yearLevelEnum == year &&
-                    existing.isPublished == (status == PublishStatus.PUBLISHED)
+                    existing.isPublished == (status == PublishStatus.PUBLISHED) &&
+                    pickedBytes == null && !removeImage
             if (unchanged) {
                 toast("No changes to save")
             } else {
-                AnnouncementStore.update(existing.id, cleanTitle, cleanBody, category, programs, year, status, cleanLink) { toast(it) }
+                AnnouncementStore.update(
+                    existing.id, cleanTitle, cleanBody, category, programs, year, status, cleanLink,
+                    newImageBase64 = pickedBytes?.let { ImageStore.toBase64(it) },
+                    removeImage = removeImage
+                ) { toast(it) }
                 toast(
                     when {
                         status == PublishStatus.DRAFT -> "Draft saved"
@@ -184,6 +234,19 @@ fun AnnouncementFormScreen(
                         singleLine = true,
                         isLink = true,
                         error = if (submitted) linkError else null
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    ImagePickerSection(
+                        existingId = existing?.id,
+                        hasSaved = existing?.hasImage == true && !removeImage,
+                        preview = pickedPreview,
+                        working = compressing,
+                        onPick = { pickImage() },
+                        onRemove = {
+                            pickedBytes = null
+                            pickedPreview = null
+                            removeImage = true
+                        }
                     )
                     Spacer(Modifier.height(16.dp))
                     AuthLabel("Category")
@@ -455,5 +518,59 @@ private fun FormField(
             )
         )
         AuthErrorText(error)
+    }
+}
+
+/** Task 8: optional picture. Shows the new pick, or the saved picture when editing. */
+@Composable
+private fun ImagePickerSection(
+    existingId: String?,
+    hasSaved: Boolean,
+    preview: ImageBitmap?,
+    working: Boolean,
+    onPick: () -> Unit,
+    onRemove: () -> Unit
+) {
+    AuthLabel("Image (optional)")
+    Spacer(Modifier.height(8.dp))
+    when {
+        working -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(color = NavyBlue, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Preparing the picture...", style = MaterialTheme.typography.labelSmall, color = SlateGray)
+        }
+        preview != null || (hasSaved && existingId != null) -> {
+            if (preview != null) {
+                Image(
+                    bitmap = preview,
+                    contentDescription = "Selected image",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+            } else if (existingId != null) {
+                AnnouncementImage(announcementId = existingId)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onPick, modifier = Modifier.weight(1f)) {
+                    Text("Change image", color = NavyBlue)
+                }
+                OutlinedButton(
+                    onClick = onRemove,
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, EmergencyRed)
+                ) {
+                    Text("Remove", color = EmergencyRed)
+                }
+            }
+        }
+        else -> OutlinedButton(onClick = onPick, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.AddPhotoAlternate, contentDescription = null, tint = NavyBlue)
+            Spacer(Modifier.width(8.dp))
+            Text("Add image (optional)", color = NavyBlue)
+        }
     }
 }

@@ -54,6 +54,7 @@ import com.batid.app.ui.components.BatidHeader
 import com.batid.app.ui.components.BatidSheet
 import com.batid.app.ui.components.CategoryTag
 import com.batid.app.ui.components.EmptyState
+import com.batid.app.ui.components.AnnouncementImage
 import com.batid.app.ui.theme.BATidTheme
 import com.batid.app.ui.theme.BorderGray
 import com.batid.app.ui.theme.ChipBlueTint
@@ -64,6 +65,7 @@ import com.batid.app.ui.theme.SlateGray
 import com.batid.app.util.formatDateTime
 import com.batid.app.util.relativeTime
 import com.batid.app.util.editedLabel
+
 
 @Composable
 fun AnnouncementDetailScreen(
@@ -146,6 +148,10 @@ fun AnnouncementDetailScreen(
                                 color = InkNavy
                             )
                             Spacer(Modifier.height(12.dp))
+                        }
+                        if (announcement.hasImage) {
+                            AnnouncementImage(announcementId = announcement.id)
+                            Spacer(Modifier.height(16.dp))
                         }
                         if (hasLink) {
                             Spacer(Modifier.height(4.dp))

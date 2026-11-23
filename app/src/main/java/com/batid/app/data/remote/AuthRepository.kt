@@ -10,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Source
 
 /**
  * The file that talks sa Firebase Auth (login) at Firestore (users/{uid}).
@@ -108,7 +109,16 @@ object AuthRepository {
                 currentProfile = profile
                 onDone(profile)
             }
-            .addOnFailureListener { onDone(null) }
+            .addOnFailureListener {
+                // Offline at app start: use the copy of the profile saved on the phone.
+                db.collection("users").document(uid).get(Source.CACHE)
+                    .addOnSuccessListener { cached ->
+                        val profile = cached.toObject(UserProfile::class.java)
+                        currentProfile = profile
+                        onDone(profile)
+                    }
+                    .addOnFailureListener { onDone(null) }
+            }
     }
 
     fun updateProgramAndYear(program: String, yearLevel: String) {

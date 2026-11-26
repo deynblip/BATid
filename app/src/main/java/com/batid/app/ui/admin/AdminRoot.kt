@@ -14,6 +14,9 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -89,11 +92,21 @@ fun AdminRoot(onSignOut: () -> Unit, onStudentView: () -> Unit = {}) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Galing sa drawer ang help screen? Pag nag-back, buksan ulit ang drawer imbes na home lang.
+    var reopenDrawer by remember { mutableStateOf(false) }
+    LaunchedEffect(currentRoute) {
+        if (reopenDrawer && currentRoute == AdminRoutes.DASHBOARD) {
+            reopenDrawer = false
+            drawerState.open()
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen || currentRoute == AdminRoutes.DASHBOARD,
         drawerContent = {
             BatidDrawerSheet(onSelect = { item ->
+                reopenDrawer = true
                 scope.launch { drawerState.close() }
                 navController.navigate(item.route) { launchSingleTop = true }
             })

@@ -35,12 +35,11 @@ import com.batid.app.ui.theme.BorderGray
 import com.batid.app.ui.theme.InkNavy
 import com.batid.app.ui.theme.SlateGray
 
-// TODO (group): palitan ng totoong email at pangalan bago ang presentation.
 private const val CONTACT_EMAIL = "baTid@gmail.com"
 private val TEAM_MEMBERS = listOf(
-    "Dane (Lead Developer)",
-    "Ace (Developer)",
-    "Vianci (UI)"
+    "Ace Angela Banaag",
+    "Vianci Mariz Boo",
+    "Dane Mercy Cura"
 )
 
 // ───────────────────────────── Shared pieces ─────────────────────────────

@@ -124,11 +124,21 @@ fun StudentRoot(onSignOut: () -> Unit, onOpenCouncilDashboard: () -> Unit) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+    // Galing sa drawer ang help screen? Pag nag-back, buksan ulit ang drawer imbes na home lang.
+    var reopenDrawer by remember { mutableStateOf(false) }
+    LaunchedEffect(currentRoute) {
+        if (reopenDrawer && currentRoute == StudentRoutes.HOME) {
+            reopenDrawer = false
+            drawerState.open()
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen || currentRoute == StudentRoutes.HOME,
         drawerContent = {
             BatidDrawerSheet(onSelect = { item ->
+                reopenDrawer = true
                 scope.launch { drawerState.close() }
                 navController.navigate(item.route) { launchSingleTop = true }
             })

@@ -134,7 +134,7 @@ To update, download the newest APK from the same link. If the install fails, uni
 
 1. Clone the repository:
    ```
-   git clone <repository-url>
+   git clone <https://github.com/deynblip/BATid.git>
    ```
 2. Open the project folder in Android Studio and wait for Gradle sync to finish.
 3. Make sure `app/google-services.json` is present (it is included in the repository).

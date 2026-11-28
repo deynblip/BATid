@@ -119,7 +119,7 @@ The project uses the free Firebase **Spark** plan. Cloud Functions were replaced
 
 You can install BATid on any Android phone without Android Studio.
 
-**[Download BATid (APK)](PASTE_GOOGLE_DRIVE_LINK_HERE)**
+**[Download BATid (APK)](https://drive.google.com/drive/folders/1pAdQR_oVS5Cz3-vPCJEyUU0AhVhi9Czi?usp=sharing)**
 
 1. Open the link on an Android phone (Android 8.0 or newer) and download the `.apk` file.
 2. Open the downloaded file. If asked, allow **Install unknown apps** for your browser or Google Drive.
